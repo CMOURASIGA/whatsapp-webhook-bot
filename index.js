@@ -1,4 +1,4 @@
-// index.js completo com logs para diagnóstico de requisição ao Make
+// index.js completo com rota GET para verificação de webhook da Meta + tratamento das mensagens recebidas
 
 const express = require("express");
 const axios = require("axios");
@@ -6,6 +6,7 @@ const app = express();
 
 app.use(express.json());
 
+const VERIFY_TOKEN = "meu_token_webhook";
 const token = "EAAS1VZCpxlZBsBO95H1rNWwuzqKYIoJ0sn2ijF90OZCdgtSMHSYlBl6lAEcXgHCXzjU4DIoY3pQdSXVwhDXajcBLcKaCaITIivBSi0UVPZBSrUy7IMzzM6rZBTSnPYSKx0nIzvGMcUZCqlfplPyKa70YfzqcxcSZAKK1btsR8V84s9Ucp43KdZAwsrxL1AZDZD";
 const phone_number_id = "572870979253681";
 const makeWebhookURL = "https://hook.us2.make.com/la3lng90eob57s6gg6yg12s8rlmqy3eh";
@@ -47,6 +48,22 @@ async function enviarMensagem(numero, mensagem) {
   }
 }
 
+// Rota de verificação do webhook (GET)
+app.get("/", (req, res) => {
+  const mode = req.query["hub.mode"];
+  const token = req.query["hub.verify_token"];
+  const challenge = req.query["hub.challenge"];
+
+  if (mode === "subscribe" && token === VERIFY_TOKEN) {
+    console.log("✅ Webhook verificado com sucesso!");
+    res.status(200).send(challenge);
+  } else {
+    console.log("❌ Falha na verificação do webhook");
+    res.sendStatus(403);
+  }
+});
+
+// Rota de recebimento das mensagens (POST)
 app.post("/", async (req, res) => {
   const body = req.body;
 
@@ -99,6 +116,7 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
+
 
 
 
