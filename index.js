@@ -1,4 +1,4 @@
-// index.js atualizado com integração ao Make para o item 6 - Eventos do EAC
+// index.js atualizado com integração ao Make para o item 6 - Eventos do EAC + menu interativo
 
 const express = require("express");
 const axios = require("axios");
@@ -8,7 +8,22 @@ app.use(express.json());
 
 const token = "EAAS1VZCpxlZBsBO95H1rNWwuzqKYIoJ0sn2ijF90OZCdgtSMHSYlBl6lAEcXgHCXzjU4DIoY3pQdSXVwhDXajcBLcKaCaITIivBSi0UVPZBSrUy7IMzzM6rZBTSnPYSKx0nIzvGMcUZCqlfplPyKa70YfzqcxcSZAKK1btsR8V84s9Ucp43KdZAwsrxL1AZDZD";
 const phone_number_id = "572870979253681";
-const makeWebhookURL = "https://hook.us2.make.com/la3lng90eob57s6gg6yg12s8rlmqy3eh";
+const makeWebhookURL = "https://hook.make.com/SEU_WEBHOOK_AQUI";
+
+function montarMenuPrincipal() {
+  return (
+    "📋 *Menu Principal - EAC Porciúncula* 📋\n\n" +
+    "1. Formulário de Inscrição para Encontristas\n" +
+    "2. Formulário de Inscrição para Encontreiros\n" +
+    "3. Instagram do EAC\n" +
+    "4. E-mail de contato\n" +
+    "5. WhatsApp da Paróquia\n" +
+    "6. Eventos do EAC\n" +
+    "7. Playlist no Spotify\n" +
+    "8. Falar com um Encontreiro\n\n" +
+    "Digite o número correspondente à opção desejada. 👇"
+  );
+}
 
 async function enviarMensagem(numero, mensagem) {
   try {
@@ -52,7 +67,11 @@ app.post("/", async (req, res) => {
         const texto = resposta.data.mensagem || resposta.data;
         await enviarMensagem(
           numero,
-          `📅 *Próximos eventos do EAC:*\n\n${texto}\n\nSe quiser participar, envie um e-mail para eacporciunculadesantana@gmail.com 📬`
+          `📅 *Próximos eventos do EAC:*
+
+${texto}
+
+Se quiser participar, envie um e-mail para eacporciunculadesantana@gmail.com 📬`
         );
       } catch (erro) {
         console.error("Erro ao consultar Make:", erro?.response?.data || erro);
@@ -62,10 +81,7 @@ app.post("/", async (req, res) => {
         );
       }
     } else {
-      await enviarMensagem(
-        numero,
-        "Olá, Christian! Recebemos sua mensagem. Em breve te responderemos. 😊"
-      );
+      await enviarMensagem(numero, montarMenuPrincipal());
     }
 
     res.sendStatus(200);
@@ -78,5 +94,6 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
+
 
 
