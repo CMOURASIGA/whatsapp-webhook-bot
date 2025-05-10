@@ -1,78 +1,82 @@
-const express = require('express');
-const axios = require('axios');
+// index.js atualizado com integração ao Make para o item 6 - Eventos do EAC
+
+const express = require("express");
+const axios = require("axios");
 const app = express();
 
 app.use(express.json());
 
-// 🔐 Token real de 60 dias gerado via Graph API Explorer
-const WHATSAPP_TOKEN = 'EAAKOELSWQlIBOwI88YQBK47aHrymPuIyslcdYmRHrDR1EVdZAlieWtZBK4AqhZBczXyd0bRi3s4HZBPQ0jzAHlfnblEv9PtlOwVNum0PNfmsaJLGzR5jdskoKA2ZCg3Jc9CCGgsNBXpDCbOwEC70GKGZA9602BRMmRWHVAWT7JQHdlx8zCWQLVgWZCR';
+const token = "EAAS1VZCpxlZBsBO95H1rNWwuzqKYIoJ0sn2ijF90OZCdgtSMHSYlBl6lAEcXgHCXzjU4DIoY3pQdSXVwhDXajcBLcKaCaITIivBSi0UVPZBSrUy7IMzzM6rZBTSnPYSKx0nIzvGMcUZCqlfplPyKa70YfzqcxcSZAKK1btsR8V84s9Ucp43KdZAwsrxL1AZDZD";
+const phone_number_id = "572870979253681";
+const makeWebhookURL = "https://hook.us2.make.com/la3lng90eob57s6gg6yg12s8rlmqy3eh";
 
-// 🔑 Token de verificação configurado no painel da Meta
-const VERIFY_TOKEN = 'meu_token_webhook';
-
-// GET para verificação do Webhook pela Meta
-app.get('/webhook', (req, res) => {
-  const mode = req.query['hub.mode'];
-  const token = req.query['hub.verify_token'];
-  const challenge = req.query['hub.challenge'];
-
-  if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-    console.log('✅ Webhook verificado com sucesso!');
-    res.status(200).send(challenge);
-  } else {
-    console.log('❌ Verificação do Webhook falhou');
-    res.sendStatus(403);
-  }
-});
-
-// POST para receber mensagens e responder automaticamente
-app.post('/webhook', async (req, res) => {
-  console.log('📩 Evento recebido:', JSON.stringify(req.body, null, 2));
-
-  const entry = req.body.entry?.[0];
-  const changes = entry?.changes?.[0];
-  const message = changes?.value?.messages?.[0];
-  const phone_number_id = changes?.value?.metadata?.phone_number_id;
-
-  if (message && phone_number_id) {
-    const from = message.from;
-    const texto = message.text?.body || '(mensagem não textual)';
-
-    console.log(`👤 De: ${from}`);
-    console.log(`💬 Mensagem: ${texto}`);
-
-    // Mensagem de resposta
-    const data = {
-      messaging_product: 'whatsapp',
-      to: from,
-      type: 'text',
-      text: {
-        body: `Olá, Christian! Recebemos sua mensagem: "${texto}" 👋`
+async function enviarMensagem(numero, mensagem) {
+  try {
+    await axios.post(
+      `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
+      {
+        messaging_product: "whatsapp",
+        to: numero,
+        text: { body: mensagem },
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
       }
-    };
-
-    try {
-      const response = await axios.post(
-        `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
-        data,
-        {
-          headers: {
-            Authorization: `Bearer ${WHATSAPP_TOKEN}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-      console.log('✅ Resposta enviada com sucesso:', response.data);
-    } catch (err) {
-      console.error('❌ Erro ao enviar resposta:', err.response?.data || err.message);
-    }
+    );
+  } catch (error) {
+    console.error("Erro ao enviar resposta:", error?.response?.data || error);
   }
+}
 
-  res.sendStatus(200);
+app.post("/", async (req, res) => {
+  const body = req.body;
+
+  if (body.object) {
+    const mensagem = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+    const textoRecebido = mensagem?.text?.body?.toLowerCase() || "";
+    const numero = mensagem?.from;
+    const nome = body.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.profile?.name || "Amigo(a)";
+
+    console.log(`📩 Mensagem recebida de ${numero}: "${textoRecebido}"`);
+
+    if (textoRecebido === "6") {
+      try {
+        const resposta = await axios.post(makeWebhookURL, {
+          comando: "eventos",
+          nome
+        });
+
+        const texto = resposta.data.mensagem || resposta.data;
+        await enviarMensagem(
+          numero,
+          `📅 *Próximos eventos do EAC:*\n\n${texto}\n\nSe quiser participar, envie um e-mail para eacporciunculadesantana@gmail.com 📬`
+        );
+      } catch (erro) {
+        console.error("Erro ao consultar Make:", erro?.response?.data || erro);
+        await enviarMensagem(
+          numero,
+          "Desculpe, não consegui consultar os eventos agora. Tente novamente em breve. 🙏"
+        );
+      }
+    } else {
+      await enviarMensagem(
+        numero,
+        "Olá, Christian! Recebemos sua mensagem. Em breve te responderemos. 😊"
+      );
+    }
+
+    res.sendStatus(200);
+  } else {
+    res.sendStatus(404);
+  }
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
+
 
