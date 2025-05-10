@@ -7,7 +7,7 @@ const app = express();
 app.use(express.json());
 
 const VERIFY_TOKEN = "meu_token_webhook";
-const token = "EAAKOELSWQlIBO8sNkaRfZBKegY4bMSHisiroopg22b9ide1h9ZBfPeqdHNT3ThWTRKK4FqAijAQw5NtNGbvobJKEx6EwRTF6KOV0nV7ZCITnwV2rBKqcbQfGHbCnEIEWWdJrBsM2FrlYCX5V7LlFyiLl2FR943qKGBa0mHTcqZAdzfch7QNlRTP9WQzDiZBolTIUTvR8k7TV4orodJIfcIFtPMejD";
+const token = "EAAS1VZCpxlZBsBO95H1rNWwuzqKYIoJ0sn2ijF90OZCdgtSMHSYlBl6lAEcXgHCXzjU4DIoY3pQdSXVwhDXajcBLcKaCaITIivBSi0UVPZBSrUy7IMzzM6rZBTSnPYSKx0nIzvGMcUZCqlfplPyKa70YfzqcxcSZAKK1btsR8V84s9Ucp43KdZAwsrxL1AZDZD";
 const phone_number_id = "572870979253681";
 const makeWebhookURL = "https://hook.us2.make.com/la3lng90eob57s6gg6yg12s8rlmqy3eh";
 
@@ -69,8 +69,15 @@ app.post("/", async (req, res) => {
 
   if (body.object) {
     const mensagem = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-    const textoRecebido = mensagem?.text?.body?.toLowerCase() || "";
-    const numero = mensagem?.from;
+
+    // ✅ Ignora eventos sem mensagem de texto ou sem número
+    if (!mensagem || !mensagem.text || !mensagem.from) {
+      console.log("⚠️ Evento ignorado (sem mensagem de texto)");
+      return res.sendStatus(200);
+    }
+
+    const textoRecebido = mensagem.text.body.toLowerCase();
+    const numero = mensagem.from;
     const nome = body.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.profile?.name || "Amigo(a)";
 
     console.log(`📩 Mensagem recebida de ${numero}: "${textoRecebido}"`);
@@ -116,6 +123,7 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
+
 
 
 
