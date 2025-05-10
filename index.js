@@ -5,7 +5,7 @@ const app = express();
 app.use(express.json());
 
 const VERIFY_TOKEN = "meu_token_webhook";
-const token = "EAAKOELSWQlIBO8sNkaRfZBKegY4bMSHisiroopg22b9ide1h9ZBfPeqdHNT3ThWTRKK4FqAijAQw5NtNGbvobJKEx6EwRTF6KOV0nV7ZCITnwV2rBKqcbQfGHbCnEIEWWdJrBsM2FrlYCX5V7LlFyiLl2FR943qKGBa0mHTcqZAdzfch7QNlRTP9WQzDiZBolTIUTvR8k7TV4orodJIfcIFtPMejD";
+const token = "EAAKOELSWQlIBO37ZA1NybZAMMl6tbwHTLBYONoqFa5UZAZBqfxZB5FZBjmXtUypHCAg8v1UrGFZAprmqQ81rBcyPbi3RU4EZCzxHk7WPkStbMPPZAhUDNUVelVAnpZAF1j0NuVwxeS020ASHtYYEIznsdTzke1lFApbTR3s10HRgYIGhVP7HoDvxjZCm9dsRhLNW5IC0AhyQI3uaisAgFJvpmcROGPWku4ZD";
 const phone_number_id = "572870979253681";
 const makeWebhookURL = "https://hook.us2.make.com/la3lng90eob57s6gg6yg12s8rlmqy3eh";
 
