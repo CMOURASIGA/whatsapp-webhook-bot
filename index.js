@@ -1,4 +1,4 @@
-// index.js recriado a partir do index_webhook original + menu principal interativo e integração Make correta
+// index.js completo com logs para diagnóstico de requisição ao Make
 
 const express = require("express");
 const axios = require("axios");
@@ -41,8 +41,9 @@ async function enviarMensagem(numero, mensagem) {
         },
       }
     );
+    console.log("✅ Mensagem enviada com sucesso para:", numero);
   } catch (error) {
-    console.error("Erro ao enviar resposta:", error?.response?.data || error);
+    console.error("❌ Erro ao enviar resposta:", error?.response?.data || error);
   }
 }
 
@@ -59,18 +60,26 @@ app.post("/", async (req, res) => {
 
     if (textoRecebido === "6") {
       try {
+        console.log("🔁 Enviando requisição ao Make...");
+
         const resposta = await axios.post(makeWebhookURL, {
           comando: "eventos",
           nome
         });
 
+        console.log("✅ Resposta do Make recebida:", resposta.data);
+
         const texto = resposta.data.mensagem || resposta.data;
         await enviarMensagem(
           numero,
-          `📅 *Próximos eventos do EAC:*\n\n${texto}\n\nSe quiser participar, envie um e-mail para eacporciunculadesantana@gmail.com 📬`
+          `📅 *Próximos eventos do EAC:*
+
+${texto}
+
+Se quiser participar, envie um e-mail para eacporciunculadesantana@gmail.com 📬`
         );
       } catch (erro) {
-        console.error("Erro ao consultar Make:", erro?.response?.data || erro);
+        console.error("❌ Erro ao consultar Make:", erro?.response?.data || erro);
         await enviarMensagem(
           numero,
           "Desculpe, não consegui consultar os eventos agora. Tente novamente em breve. 🙏"
@@ -90,6 +99,7 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
+
 
 
 
