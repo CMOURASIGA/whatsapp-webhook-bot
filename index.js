@@ -1,5 +1,3 @@
-// index.js completo com rota GET para verificação de webhook da Meta + tratamento das mensagens recebidas
-
 const express = require("express");
 const axios = require("axios");
 const app = express();
@@ -48,7 +46,7 @@ async function enviarMensagem(numero, mensagem) {
   }
 }
 
-// Rota de verificação do webhook (GET)
+// Rota de verificação do webhook
 app.get("/", (req, res) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
@@ -63,14 +61,13 @@ app.get("/", (req, res) => {
   }
 });
 
-// Rota de recebimento das mensagens (POST)
+// Rota de recebimento de mensagens
 app.post("/", async (req, res) => {
   const body = req.body;
 
   if (body.object) {
     const mensagem = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
 
-    // ✅ Ignora eventos sem mensagem de texto ou sem número
     if (!mensagem || !mensagem.text || !mensagem.from) {
       console.log("⚠️ Evento ignorado (sem mensagem de texto)");
       return res.sendStatus(200);
@@ -88,7 +85,8 @@ app.post("/", async (req, res) => {
 
         const resposta = await axios.post(makeWebhookURL, {
           comando: "eventos",
-          nome
+          nome,
+          numero  // ✅ Agora enviando o número também!
         });
 
         console.log("✅ Resposta do Make recebida:", resposta.data);
@@ -123,6 +121,7 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
+
 
 
 
