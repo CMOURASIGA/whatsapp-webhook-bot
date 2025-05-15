@@ -8,7 +8,8 @@ const VERIFY_TOKEN = "meu_token_webhook";
 const token = "EAAKOELSWQlIBO1esyJcZBtDFPNV3YW4FRiSQQoU4MGzTyzjqbC3FQ51RmI0DPPg8ZA1q9pt6DDAkCRypo8apXaOthqh48fnfLenQBvC8gnBdKDfDxCqWDRMBTEc35VRtAFboCXnyDavUw8AJ5PtB5Ri6raht4vRSppblItyj1RrWgUTMZBL146VaJFWIdoJ6beB9ZAyfvyeBQZCO0AwLBqxuQOqFsnUwZD";
 const phone_number_id = "572870979253681";
 const makeWebhookMenu1 = "https://hook.us2.make.com/4avmjbxepfl59g3d7jbl8ovylik4mcm8";
-const makeWebhookMenu6 = "https://hook.us2.make.com/la3lng90eob57s6gg6yg12s8rlmqy3eh";
+//const makeWebhookMenu6 = "https://hook.us2.make.com/la3lng90eob57s6gg6yg12s8rlmqy3eh";
+const makeWebhookMenu6 = "https://hook.us2.make.com/wmmh2a750u3mbe2xymhvwm6cqt4xknna";
 
 function montarMenuPrincipal() {
   return (
