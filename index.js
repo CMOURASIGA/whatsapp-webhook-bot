@@ -1,4 +1,4 @@
-saconst express = require("express");
+const express = require("express");
 const axios = require("axios");
 const app = express();
 
@@ -105,7 +105,7 @@ Qualquer dúvida, fale conosco:
       await enviarMensagem(numero, `📸 *Instagram do EAC Porciúncula*
 
 Nos siga e acompanhe as novidades, fotos e reflexões:
-👉 https://www.instagram.com/eacporciunculadesantana/`);
+👉 https://www.instagram.com/eacporciuncula/`);
     } else if (textoRecebido === "4") {
       await enviarMensagem(numero, `📬 *E-mail de contato do EAC Porciúncula*
 
@@ -157,6 +157,7 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`\ud83d\ude80 Servidor rodando na porta ${PORT}`);
 });
+
 
 
 
