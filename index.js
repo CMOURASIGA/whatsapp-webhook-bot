@@ -1,4 +1,4 @@
-const express = require("express");
+saconst express = require("express");
 const axios = require("axios");
 const app = express();
 
@@ -105,7 +105,7 @@ Qualquer dúvida, fale conosco:
       await enviarMensagem(numero, `📸 *Instagram do EAC Porciúncula*
 
 Nos siga e acompanhe as novidades, fotos e reflexões:
-👉 https://www.instagram.com/eacporciuncula/`);
+👉 https://www.instagram.com/eacporciunculadesantana/`);
     } else if (textoRecebido === "4") {
       await enviarMensagem(numero, `📬 *E-mail de contato do EAC Porciúncula*
 
