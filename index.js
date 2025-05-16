@@ -4,10 +4,9 @@ const app = express();
 
 app.use(express.json());
 
-const VERIFY_TOKEN = "meu_token_webhook"; // Use o mesmo token no painel da Meta
-const token = "EAAKOELSWQlIBO8PH2pUUynaXZAr5qx9RcKz3ZAmMg52UvWqyx4UjyeMMZCEmZCn4tQT2jWWrtJY8h5CkZAs71sZCQBjDMWNv7RZCmGJE7eaKznCk4VThKfHmLwSOkI3UgPnlyShfoN2SBRn0PqZBpDfn0vAO8Ap8pZAC0wgXgv3P0aHFB72bzuubyqQvtH2lB1900NcaEakuIH71XyNv08h8GaSvm2pMZD";
+const VERIFY_TOKEN = "meu_token_webhook";
+const token = "EAAKOELSWQlIBO7FUIBmiqkUow0tQuprQVcMYGTGl7QfIQo2xPjkaFW75B0wnimOMDN14rGTggfhA4hxhN9DN8GnTUkiZA765Ap54ZAdybZAPKSilII4eUxHPDoZB2ftDFSi3Mf3xFdcNWlRAOcLYkyXKk9ndCIfSdy6gSNYuIEpdIQaCsNJUAgdZB6BncZAT4Pz2XiCikdIDEEMgGJtdiTUlIZD";
 const phone_number_id = "572870979253681";
-const makeWebhookMenu6 = "https://hook.us2.make.com/wmmh2a750u3mbe2xymhvwm6cqt4xknna";
 
 function montarMenuPrincipal() {
   return (
@@ -46,7 +45,7 @@ async function enviarMensagem(numero, mensagem) {
   }
 }
 
-// ✅ ROTA GET para verificação do Webhook
+// ROTA GET para verificação do Webhook
 app.get("/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
@@ -61,7 +60,7 @@ app.get("/webhook", (req, res) => {
   }
 });
 
-// ✅ ROTA POST para processar mensagens recebidas
+// ROTA POST para processar mensagens recebidas
 app.post("/webhook", async (req, res) => {
   const body = req.body;
 
@@ -79,6 +78,36 @@ app.post("/webhook", async (req, res) => {
 
     console.log(`📩 Mensagem recebida de ${numero}: "${textoRecebido}"`);
 
+    // Verifica se é uma saudação
+    const saudacoes = ["oi", "olá", "bom dia", "boa tarde", "boa noite"];
+    if (saudacoes.includes(textoRecebido)) {
+      // 1. Envia GIF de boas-vindas
+      await axios.post(
+        `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
+        {
+          messaging_product: "whatsapp",
+          to: numero,
+          type: "image",
+          image: {
+            link: "https://drive.google.com/uc?export=download&id=1jx_XH1JzOSO8gjUnbHjOkPjo2FsbFx9q",
+            caption: "👋 Seja bem-vindo(a) ao EAC Porciúncula!",
+          },
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      // 2. Aguarda 1 segundo e envia o menu
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await enviarMensagem(numero, montarMenuPrincipal());
+      return res.sendStatus(200);
+    }
+
+    // MENU PRINCIPAL - OPÇÕES
     if (textoRecebido === "1") {
       await enviarMensagem(numero, `📝 *Formulário de Inscrição para Encontristas*
 
@@ -113,18 +142,7 @@ Fale com a gente para dúvidas, sugestões ou apoio:
 Fale diretamente com a secretaria paroquial:
 👉 https://wa.me/552123422186`);
     } else if (textoRecebido === "6") {
-      try {
-        const resposta = await axios.post(makeWebhookMenu6, {
-          comando: "eventos",
-          nome,
-          numero
-        });
-        const texto = resposta.data.mensagem || resposta.data;
-        await enviarMensagem(numero, `📅 *Próximos eventos do EAC:*\n\n${texto}\n\nSe quiser participar, envie um e-mail para eacporciunculadesantana@gmail.com 📬`);
-      } catch (erro) {
-        console.error("❌ Erro ao consultar Make (menu 6):", erro?.response?.data || erro);
-        await enviarMensagem(numero, "Desculpe, não consegui consultar os eventos agora. Tente novamente em breve. 🙏");
-      }
+      await enviarMensagem(numero, "📅 Em breve você poderá consultar os eventos aqui mesmo no WhatsApp! Aguarde novidades. 🙌");
     } else if (textoRecebido === "7") {
       await enviarMensagem(numero, `🎵 *Playlist do EAC no Spotify*
 
@@ -149,10 +167,3 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
-
-
-
-
-
-
-
