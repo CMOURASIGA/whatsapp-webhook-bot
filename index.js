@@ -5,7 +5,7 @@ const app = express();
 app.use(express.json());
 
 const VERIFY_TOKEN = "meu_token_webhook";
-const token = "EAAKOELSWQlIBO4BZAUWpm9sZCGLgAtrg9nd1EqUlK2DzmmYQg2ltoVaI2mrZCqRZAViutDv62QZBmuiC9WAZB4OadofFPT39rNcoIuygidynQom0iQCT5YUKmvwHWMvfO46n8q7dZBeknCmZChYNc7st8zeUkZCj6uXb3m28cJHuBDOxaWoFowDlwtDB44jhFA2ZBQhcDBylmL3UCukwImrUqh7sT46mYZD";
+const token = "EAA..."; // seu token válido aqui
 const phone_number_id = "572870979253681";
 
 function montarMenuPrincipal() {
@@ -45,7 +45,7 @@ async function enviarMensagem(numero, mensagem) {
   }
 }
 
-// ROTA GET para verificação do Webhook
+// GET para verificação do Webhook
 app.get("/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
@@ -60,7 +60,7 @@ app.get("/webhook", (req, res) => {
   }
 });
 
-// ROTA POST para processar mensagens recebidas
+// POST para processar mensagens recebidas
 app.post("/webhook", async (req, res) => {
   const body = req.body;
 
@@ -78,10 +78,11 @@ app.post("/webhook", async (req, res) => {
 
     console.log(`📩 Mensagem recebida de ${numero}: "${textoRecebido}"`);
 
-    // Verifica se é uma saudação
+    // Saudações flexíveis (com some)
     const saudacoes = ["oi", "olá", "bom dia", "boa tarde", "boa noite"];
-    if (saudacoes.includes(textoRecebido)) {
-      // 1. Envia GIF de boas-vindas
+    if (saudacoes.some(saud => textoRecebido.includes(saud))) {
+      console.log("🎬 Enviando GIF de boas-vindas para:", numero);
+
       await axios.post(
         `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
         {
@@ -101,13 +102,12 @@ app.post("/webhook", async (req, res) => {
         }
       );
 
-      // 2. Aguarda 1 segundo e envia o menu
       await new Promise(resolve => setTimeout(resolve, 1000));
       await enviarMensagem(numero, montarMenuPrincipal());
       return res.sendStatus(200);
     }
 
-    // MENU PRINCIPAL - OPÇÕES
+    // Respostas do menu
     if (textoRecebido === "1") {
       await enviarMensagem(numero, `📝 *Formulário de Inscrição para Encontristas*
 
