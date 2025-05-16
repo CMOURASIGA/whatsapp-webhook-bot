@@ -5,7 +5,7 @@ const app = express();
 app.use(express.json());
 
 const VERIFY_TOKEN = "meu_token_webhook";
-const token = "EAAKOELSWQlIBO7FUIBmiqkUow0tQuprQVcMYGTGl7QfIQo2xPjkaFW75B0wnimOMDN14rGTggfhA4hxhN9DN8GnTUkiZA765Ap54ZAdybZAPKSilII4eUxHPDoZB2ftDFSi3Mf3xFdcNWlRAOcLYkyXKk9ndCIfSdy6gSNYuIEpdIQaCsNJUAgdZB6BncZAT4Pz2XiCikdIDEEMgGJtdiTUlIZD";
+const token = "EAAKOELSWQlIBO4BZAUWpm9sZCGLgAtrg9nd1EqUlK2DzmmYQg2ltoVaI2mrZCqRZAViutDv62QZBmuiC9WAZB4OadofFPT39rNcoIuygidynQom0iQCT5YUKmvwHWMvfO46n8q7dZBeknCmZChYNc7st8zeUkZCj6uXb3m28cJHuBDOxaWoFowDlwtDB44jhFA2ZBQhcDBylmL3UCukwImrUqh7sT46mYZD";
 const phone_number_id = "572870979253681";
 
 function montarMenuPrincipal() {
