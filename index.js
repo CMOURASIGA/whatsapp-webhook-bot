@@ -5,9 +5,9 @@ const app = express();
 app.use(express.json());
 
 const VERIFY_TOKEN = "meu_token_webhook"; // o mesmo usado no painel da Meta
-const n8nWebhookURL = "https://n8n-eac.onrender.com/webhook/webhook-whatsapp"; // <-- URL do webhook no n8n
+const n8nWebhookURL = "https://n8n-eac.onrender.com/webhook/webhook-whatsapp"; // URL do webhook no n8n
 
-// 🔄 Verificação do Webhook da Meta
+// ✅ ROTA GET - Verificação inicial do Webhook com a Meta
 app.get("/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
@@ -22,9 +22,12 @@ app.get("/webhook", (req, res) => {
   }
 });
 
-// 📩 Recepção de mensagens do WhatsApp
+// ✅ ROTA POST - Recebendo eventos do WhatsApp da Meta
 app.post("/webhook", async (req, res) => {
   const body = req.body;
+
+  // 🔎 Log bruto do que chegou da Meta
+  console.log("🔔 Webhook POST recebido:", JSON.stringify(body, null, 2));
 
   if (body.object) {
     console.log("📩 Evento recebido da Meta, repassando para o n8n...");
@@ -38,14 +41,17 @@ app.post("/webhook", async (req, res) => {
 
     return res.sendStatus(200);
   } else {
+    console.warn("⚠️ Evento inválido recebido (sem body.object)");
     return res.sendStatus(404);
   }
 });
 
+// Inicializa o servidor
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Servidor escutando na porta ${PORT}`);
 });
+
 
 
 
