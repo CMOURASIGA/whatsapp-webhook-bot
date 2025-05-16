@@ -7,7 +7,6 @@ app.use(express.json());
 const VERIFY_TOKEN = "meu_token_webhook"; // Use o mesmo token no painel da Meta
 const token = "EAAKOELSWQlIBO7FUIBmiqkUow0tQuprQVcMYGTGl7QfIQo2xPjkaFW75B0wnimOMDN14rGTggfhA4hxhN9DN8GnTUkiZA765Ap54ZAdybZAPKSilII4eUxHPDoZB2ftDFSi3Mf3xFdcNWlRAOcLYkyXKk9ndCIfSdy6gSNYuIEpdIQaCsNJUAgdZB6BncZAT4Pz2XiCikdIDEEMgGJtdiTUlIZD";
 const phone_number_id = "572870979253681";
-const makeWebhookMenu1 = "https://hook.us2.make.com/4avmjbxepfl59g3d7jbl8ovylik4mcm8";
 const makeWebhookMenu6 = "https://hook.us2.make.com/wmmh2a750u3mbe2xymhvwm6cqt4xknna";
 
 function montarMenuPrincipal() {
@@ -43,7 +42,7 @@ async function enviarMensagem(numero, mensagem) {
     );
     console.log("✅ Mensagem enviada com sucesso para:", numero);
   } catch (error) {
-    console.error("❌ Erro ao enviar resposta:", error?.response?.data || error);
+    console.error("❌ Erro ao enviar resposta:", JSON.stringify(error.response?.data || error, null, 2));
   }
 }
 
@@ -81,18 +80,13 @@ app.post("/webhook", async (req, res) => {
     console.log(`📩 Mensagem recebida de ${numero}: "${textoRecebido}"`);
 
     if (textoRecebido === "1") {
-      try {
-        const resposta = await axios.post(makeWebhookMenu1, {
-          comando: "formulario_encontristas",
-          nome,
-          numero
-        });
-        const texto = resposta.data.mensagem || resposta.data;
-        await enviarMensagem(numero, texto);
-      } catch (erro) {
-        console.error("❌ Erro ao consultar Make (menu 1):", erro?.response?.data || erro);
-        await enviarMensagem(numero, "Desculpe, não consegui acessar o formulário agora. Tente novamente em breve. 🙏");
-      }
+      await enviarMensagem(numero, `📝 *Formulário de Inscrição para Encontristas*
+
+Se você deseja participar pela primeira vez do nosso encontro, preencha o formulário abaixo com atenção. 🙏
+
+👉 https://forms.gle/wYSKk4nHRnnuMLi29
+
+Estamos te esperando com alegria! 😄`);
     } else if (textoRecebido === "2") {
       await enviarMensagem(numero, `📝 *Formulário de Inscrição para Encontreiros*
 
