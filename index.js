@@ -4,25 +4,24 @@ const app = express();
 
 app.use(express.json());
 
-const VERIFY_TOKEN = "meu_token_webhook";
+const VERIFY_TOKEN = "meu_token_webhook"; // Use o mesmo token no painel da Meta
 const token = "EAAKOELSWQlIBOZBuZCrvW9R0W3L06zpfVL6LHx5Vt8oHcB0bzFpYeJ1s7bStw8jrYiAGPRKwPfPrhQ8HSpwvVDPuRoI5u7mkGUiHeJj2YFVUlZCejCV3IpibwCZApOfZBiZBhbZCeOpIZCK3ld8PY174xzROJqGFtvNf1svZBBFHeGE1owNU9emx1D4VqxQ8WIComJNvnzR1yVxxqGAZDZD";
 const phone_number_id = "572870979253681";
 const makeWebhookMenu1 = "https://hook.us2.make.com/4avmjbxepfl59g3d7jbl8ovylik4mcm8";
-//const makeWebhookMenu6 = "https://hook.us2.make.com/la3lng90eob57s6gg6yg12s8rlmqy3eh";
 const makeWebhookMenu6 = "https://hook.us2.make.com/wmmh2a750u3mbe2xymhvwm6cqt4xknna";
 
 function montarMenuPrincipal() {
   return (
-    "\ud83d\udccb *Menu Principal - EAC Porci\u00facula* \ud83d\udccb\n\n" +
-    "1. Formul\u00e1rio de Inscri\u00e7\u00e3o para Encontristas\n" +
-    "2. Formul\u00e1rio de Inscri\u00e7\u00e3o para Encontreiros\n" +
+    "📋 *Menu Principal - EAC Porciúncula* 📋\n\n" +
+    "1. Formulário de Inscrição para Encontristas\n" +
+    "2. Formulário de Inscrição para Encontreiros\n" +
     "3. Instagram do EAC\n" +
     "4. E-mail de contato\n" +
-    "5. WhatsApp da Par\u00f3quia\n" +
+    "5. WhatsApp da Paróquia\n" +
     "6. Eventos do EAC\n" +
     "7. Playlist no Spotify\n" +
     "8. Falar com um Encontreiro\n\n" +
-    "Digite o n\u00famero correspondente \u00e0 op\u00e7\u00e3o desejada. \ud83d\udc47"
+    "Digite o número correspondente à opção desejada. 👇"
   );
 }
 
@@ -42,34 +41,36 @@ async function enviarMensagem(numero, mensagem) {
         },
       }
     );
-    console.log("\u2705 Mensagem enviada com sucesso para:", numero);
+    console.log("✅ Mensagem enviada com sucesso para:", numero);
   } catch (error) {
-    console.error("\u274c Erro ao enviar resposta:", error?.response?.data || error);
+    console.error("❌ Erro ao enviar resposta:", error?.response?.data || error);
   }
 }
 
-app.get("/", (req, res) => {
+// ✅ ROTA GET para verificação do Webhook
+app.get("/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];
 
   if (mode === "subscribe" && token === VERIFY_TOKEN) {
-    console.log("\u2705 Webhook verificado com sucesso!");
+    console.log("✅ Webhook verificado com sucesso!");
     res.status(200).send(challenge);
   } else {
-    console.log("\u274c Falha na verifica\u00e7\u00e3o do webhook");
+    console.log("❌ Falha na verificação do webhook");
     res.sendStatus(403);
   }
 });
 
-app.post("/", async (req, res) => {
+// ✅ ROTA POST para processar mensagens recebidas
+app.post("/webhook", async (req, res) => {
   const body = req.body;
 
   if (body.object) {
     const mensagem = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
 
     if (!mensagem || !mensagem.text || !mensagem.from) {
-      console.log("\u26a0\ufe0f Evento ignorado (sem mensagem de texto)");
+      console.log("⚠️ Evento ignorado (sem mensagem de texto)");
       return res.sendStatus(200);
     }
 
@@ -77,7 +78,7 @@ app.post("/", async (req, res) => {
     const numero = mensagem.from;
     const nome = body.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.profile?.name || "Amigo(a)";
 
-    console.log(`\ud83d\udce9 Mensagem recebida de ${numero}: "${textoRecebido}"`);
+    console.log(`📩 Mensagem recebida de ${numero}: "${textoRecebido}"`);
 
     if (textoRecebido === "1") {
       try {
@@ -89,8 +90,8 @@ app.post("/", async (req, res) => {
         const texto = resposta.data.mensagem || resposta.data;
         await enviarMensagem(numero, texto);
       } catch (erro) {
-        console.error("\u274c Erro ao consultar Make (menu 1):", erro?.response?.data || erro);
-        await enviarMensagem(numero, "Desculpe, n\u00e3o consegui acessar o formul\u00e1rio agora. Tente novamente em breve. \ud83d\ude4f");
+        console.error("❌ Erro ao consultar Make (menu 1):", erro?.response?.data || erro);
+        await enviarMensagem(numero, "Desculpe, não consegui acessar o formulário agora. Tente novamente em breve. 🙏");
       }
     } else if (textoRecebido === "2") {
       await enviarMensagem(numero, `📝 *Formulário de Inscrição para Encontreiros*
@@ -125,14 +126,10 @@ Fale diretamente com a secretaria paroquial:
           numero
         });
         const texto = resposta.data.mensagem || resposta.data;
-        await enviarMensagem(numero, `📅 *Próximos eventos do EAC:*
-
-${texto}
-
-Se quiser participar, envie um e-mail para eacporciunculadesantana@gmail.com 📬`);
+        await enviarMensagem(numero, `📅 *Próximos eventos do EAC:*\n\n${texto}\n\nSe quiser participar, envie um e-mail para eacporciunculadesantana@gmail.com 📬`);
       } catch (erro) {
-        console.error("\u274c Erro ao consultar Make (menu 6):", erro?.response?.data || erro);
-        await enviarMensagem(numero, "Desculpe, n\u00e3o consegui consultar os eventos agora. Tente novamente em breve. 🙏");
+        console.error("❌ Erro ao consultar Make (menu 6):", erro?.response?.data || erro);
+        await enviarMensagem(numero, "Desculpe, não consegui consultar os eventos agora. Tente novamente em breve. 🙏");
       }
     } else if (textoRecebido === "7") {
       await enviarMensagem(numero, `🎵 *Playlist do EAC no Spotify*
@@ -156,7 +153,7 @@ Quer conversar com alguém da nossa equipe? É só mandar uma mensagem:
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`\ud83d\ude80 Servidor rodando na porta ${PORT}`);
+  console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
 
 
