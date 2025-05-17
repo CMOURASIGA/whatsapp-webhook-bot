@@ -90,7 +90,7 @@ Siga a gente no Instagram e acompanhe:
 \u2728 Fotos, reels e mensagens
 \u2728 Atualiza\u00e7\u00f5es e convites especiais
 
-\uD83D\uDC49 https://www.instagram.com/eacporciuncula/`);
+\uD83D\uDC49 https://www.instagram.com/eacporciunculadesantana/`);
     } else if (textoRecebido === "4") {
       await enviarMensagem(numero, `\uD83D\uDCEC *Fale com a gente por e-mail!*
 
