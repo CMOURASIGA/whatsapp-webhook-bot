@@ -5,21 +5,21 @@ const app = express();
 app.use(express.json());
 
 const VERIFY_TOKEN = "meu_token_webhook";
-const token = "EAAKOELSWQlIBO4BZAUWpm9sZCGLgAtrg9nd1EqUlK2DzmmYQg2ltoVaI2mrZCqRZAViutDv62QZBmuiC9WAZB4OadofFPT39rNcoIuygidynQom0iQCT5YUKmvwHWMvfO46n8q7dZBeknCmZChYNc7st8zeUkZCj6uXb3m28cJHuBDOxaWoFowDlwtDB44jhFA2ZBQhcDBylmL3UCukwImrUqh7sT46mYZD..."; // seu token válido aqui
+const token = "EAAKOELSWQlIBO4BZAUWpm9sZCGLgAtrg9nd1EqUlK2DzmmYQg2ltoVaI2mrZCqRZAViutDv62QZBmuiC9WAZB4OadofFPT39rNcoIuygidynQom0iQCT5YUKmvwHWMvfO46n8q7dZBeknCmZChYNc7st8zeUkZCj6uXb3m28cJHuBDOxaWoFowDlwtDB44jhFA2ZBQhcDBylmL3UCukwImrUqh7sT46mYZD"; // seu token válido aqui
 const phone_number_id = "572870979253681";
 
 function montarMenuPrincipal() {
   return (
-    "📋 *Menu Principal - EAC Porciúncula* 📋\n\n" +
-    "1. Formulário de Inscrição para Encontristas\n" +
-    "2. Formulário de Inscrição para Encontreiros\n" +
+    "\uD83D\uDCCB *Menu Principal - EAC Porci\u00facula* \uD83D\uDCCB\n\n" +
+    "1. Formul\u00e1rio de Inscri\u00e7\u00e3o para Encontristas\n" +
+    "2. Formul\u00e1rio de Inscri\u00e7\u00e3o para Encontreiros\n" +
     "3. Instagram do EAC\n" +
     "4. E-mail de contato\n" +
-    "5. WhatsApp da Paróquia\n" +
+    "5. WhatsApp da Par\u00f3quia\n" +
     "6. Eventos do EAC\n" +
     "7. Playlist no Spotify\n" +
     "8. Falar com um Encontreiro\n\n" +
-    "Digite o número correspondente à opção desejada. 👇"
+    "Digite o n\u00famero correspondente \u00e0 op\u00e7\u00e3o desejada. \uD83D\uDC47"
   );
 }
 
@@ -39,28 +39,12 @@ async function enviarMensagem(numero, mensagem) {
         },
       }
     );
-    console.log("✅ Mensagem enviada com sucesso para:", numero);
+    console.log("\u2705 Mensagem enviada com sucesso para:", numero);
   } catch (error) {
-    console.error("❌ Erro ao enviar resposta:", JSON.stringify(error.response?.data || error, null, 2));
+    console.error("\u274C Erro ao enviar resposta:", JSON.stringify(error.response?.data || error, null, 2));
   }
 }
 
-// GET para verificação do Webhook
-app.get("/webhook", (req, res) => {
-  const mode = req.query["hub.mode"];
-  const token = req.query["hub.verify_token"];
-  const challenge = req.query["hub.challenge"];
-
-  if (mode === "subscribe" && token === VERIFY_TOKEN) {
-    console.log("✅ Webhook verificado com sucesso!");
-    res.status(200).send(challenge);
-  } else {
-    console.log("❌ Falha na verificação do webhook");
-    res.sendStatus(403);
-  }
-});
-
-// POST para processar mensagens recebidas
 app.post("/webhook", async (req, res) => {
   const body = req.body;
 
@@ -68,91 +52,77 @@ app.post("/webhook", async (req, res) => {
     const mensagem = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
 
     if (!mensagem || !mensagem.text || !mensagem.from) {
-      console.log("⚠️ Evento ignorado (sem mensagem de texto)");
       return res.sendStatus(200);
     }
 
     const textoRecebido = mensagem.text.body.toLowerCase().trim();
     const numero = mensagem.from;
-    const nome = body.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.profile?.name || "Amigo(a)";
 
-    console.log(`📩 Mensagem recebida de ${numero}: "${textoRecebido}"`);
-
-    // Saudações flexíveis (com some)
-    const saudacoes = ["oi", "olá", "bom dia", "boa tarde", "boa noite"];
+    const saudacoes = ["oi", "ol\u00e1", "bom dia", "boa tarde", "boa noite"];
     if (saudacoes.some(saud => textoRecebido.includes(saud))) {
-      console.log("🎬 Enviando GIF de boas-vindas para:", numero);
-
-      await axios.post(
-        `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
-        {
-          messaging_product: "whatsapp",
-          to: numero,
-          type: "image",
-          image: {
-            link: "https://www.canva.com/design/DAGnqD45W-Y/RnFBTW_2xhCDlrleveu8MA/view?utm_content=DAGnqD45W-Y&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=h08538cdb88",
-            caption: "👋 Seja bem-vindo(a) ao EAC Porciúncula!",
-          },
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      await enviarMensagem(numero, montarMenuPrincipal());
+      await enviarMensagem(numero, "\uD83D\uDC4B Seja bem-vindo(a) ao EAC Porci\u00facula!\n\n" + montarMenuPrincipal());
       return res.sendStatus(200);
     }
 
-    // Respostas do menu
     if (textoRecebido === "1") {
-      await enviarMensagem(numero, `📝 *Formulário de Inscrição para Encontristas*
+      await enviarMensagem(numero, `\uD83D\uDCDD *Formul\u00e1rio de Inscri\u00e7\u00e3o para Encontristas*
 
-Se você deseja participar pela primeira vez do nosso encontro, preencha o formulário abaixo com atenção. 🙏
+Se voc\u00ea deseja participar pela primeira vez do nosso encontro, preencha o formul\u00e1rio abaixo com aten\u00e7\u00e3o. \uD83D\uDE4F
 
-👉 https://forms.gle/wYSKk4nHRnnuMLi29
+\uD83D\uDC49 https://docs.google.com/forms/d/e/1FAIpQLScrESiqWcBsnqMXGwiOOojIeU6ryhuWwZkL1kMr0QIeosgg5w/viewform?usp=preview
 
-Estamos te esperando com alegria! 😄`);
+Estamos te esperando com alegria! \uD83D\uDE04`);
     } else if (textoRecebido === "2") {
-      await enviarMensagem(numero, `📝 *Formulário de Inscrição para Encontreiros*
+      await enviarMensagem(numero, `\uD83D\uDCDD *Formul\u00e1rio de Inscri\u00e7\u00e3o para Encontreiros*
 
-Se você já participou do EAC e quer servir nesta missão, esse é o seu lugar. 🙌
+Se voc\u00ea j\u00e1 participou do EAC e quer servir nesta miss\u00e3o, esse \u00e9 o seu lugar. \uD83D\uDCAA
 
-Preencha o formulário abaixo:
-👉 [COLE AQUI O LINK DO FORMULÁRIO DE ENCONTREIROS]
+Preencha o formul\u00e1rio abaixo:
+\uD83D\uDC49 https://forms.gle/VzqYTs9yvnACiCew6
 
-Qualquer dúvida, fale conosco:
-📲 https://wa.me/5521981845675`);
+Qualquer d\u00favida, fale com a gente:
+\uD83D\uDCF2 https://wa.me/5521981845675`);
     } else if (textoRecebido === "3") {
-      await enviarMensagem(numero, `📸 *Instagram do EAC Porciúncula*
+      await enviarMensagem(numero, `\uD83D\uDCF8 *Instagram Oficial do EAC Porci\u00facula*
 
-Nos siga e acompanhe as novidades, fotos e reflexões:
-👉 https://www.instagram.com/eacporciuncula/`);
+Siga a gente no Instagram e acompanhe:
+\u2728 Bastidores dos encontros
+\u2728 Fotos, reels e mensagens
+\u2728 Atualiza\u00e7\u00f5es e convites especiais
+
+\uD83D\uDC49 https://www.instagram.com/eacporciuncula/`);
     } else if (textoRecebido === "4") {
-      await enviarMensagem(numero, `📬 *E-mail de contato do EAC Porciúncula*
+      await enviarMensagem(numero, `\uD83D\uDCEC *Fale com a gente por e-mail!*
 
-Fale com a gente para dúvidas, sugestões ou apoio:
-✉️ eacporciunculadesantana@gmail.com`);
+D\u00favidas, sugest\u00f5es ou pedidos de ora\u00e7\u00e3o?
+Entre em contato com a nossa equipe:
+
+\u2709\uFE0F eacporciunculadesantana@gmail.com`);
     } else if (textoRecebido === "5") {
-      await enviarMensagem(numero, `📱 *WhatsApp da Paróquia Porciúncula*
+      await enviarMensagem(numero, `\uD83D\uDCF1 *WhatsApp da Secretaria Paroquial*
 
-Fale diretamente com a secretaria paroquial:
-👉 https://wa.me/552123422186`);
+Fale diretamente com a equipe da Par\u00f3quia Porci\u00facula para:
+- Informa\u00e7\u00f5es gerais
+- Atendimentos e hor\u00e1rios
+- Solicita\u00e7\u00f5es pastorais
+
+\uD83D\uDC49 https://wa.me/552123422186`);
     } else if (textoRecebido === "6") {
-      await enviarMensagem(numero, "📅 Em breve você poderá consultar os eventos aqui mesmo no WhatsApp! Aguarde novidades. 🙌");
+      await enviarMensagem(numero, `\uD83D\uDCC5 *Eventos do EAC*
+
+Em breve voc\u00ea poder\u00e1 consultar aqui os pr\u00f3ximos eventos, atividades e datas importantes! Fique de olho! \uD83D\uDC40`);
     } else if (textoRecebido === "7") {
-      await enviarMensagem(numero, `🎵 *Playlist do EAC no Spotify*
+      await enviarMensagem(numero, `\uD83C\uDFB5 *Playlist Oficial do EAC no Spotify*
 
-Ouça as músicas que marcaram nossos encontros:
-👉 [INSIRA O LINK DA PLAYLIST]`);
+Reviva os momentos marcantes dos encontros com as m\u00fasicas que tocam o cora\u00e7\u00e3o. \uD83D\uDC9B
+
+\uD83D\uDC49 https://open.spotify.com/playlist/0JquaFjl5u9GrvSgML4S0R`);
     } else if (textoRecebido === "8") {
-      await enviarMensagem(numero, `💬 *Falar com um Encontreiro*
+      await enviarMensagem(numero, `\uD83D\uDCAC *Falar com um Encontreiro*
 
-Quer conversar com alguém da nossa equipe? É só mandar uma mensagem:
-📲 https://wa.me/5521981845675`);
+Est\u00e1 com alguma d\u00favida ou precisa conversar com algu\u00e9m da equipe? Estamos aqui por voc\u00ea! \uD83D\uDE4F
+
+\uD83D\uDCF2 https://wa.me/5521981845675`);
     } else {
       await enviarMensagem(numero, montarMenuPrincipal());
     }
@@ -165,5 +135,5 @@ Quer conversar com alguém da nossa equipe? É só mandar uma mensagem:
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT}`);
+  console.log(`\uD83D\uDE80 Servidor rodando na porta ${PORT}`);
 });
