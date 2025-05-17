@@ -90,7 +90,7 @@ app.post("/webhook", async (req, res) => {
           to: numero,
           type: "image",
           image: {
-            link: "https://drive.google.com/uc?export=download&id=1jx_XH1JzOSO8gjUnbHjOkPjo2FsbFx9q",
+            link: "https://i.imgur.com/xyz123.gif",
             caption: "👋 Seja bem-vindo(a) ao EAC Porciúncula!",
           },
         },
