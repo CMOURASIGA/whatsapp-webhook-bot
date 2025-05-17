@@ -90,7 +90,7 @@ app.post("/webhook", async (req, res) => {
           to: numero,
           type: "image",
           image: {
-            link: "https://www.canva.com/design/DAGnqCvl7LU/62uqtFfPDUWWENbpjSy3kA/watch?utm_content=DAGnqCvl7LU&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=hd885633438",
+            link: "https://www.canva.com/design/DAGnqD45W-Y/RnFBTW_2xhCDlrleveu8MA/view?utm_content=DAGnqD45W-Y&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=h08538cdb88",
             caption: "👋 Seja bem-vindo(a) ao EAC Porciúncula!",
           },
         },
