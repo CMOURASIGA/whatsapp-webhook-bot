@@ -73,7 +73,7 @@ async function verificarEventosParaLembrete() {
       const dataEvento = new Date(row[6]);
       if (dataEvento.toDateString() === amanha.toDateString()) {
         const nomeEvento = row[0];
-        msgUsuarios.push(`📢 *Lembrete*: Amanhã tem *${nomeEvento}* no EAC! Esperamos você! 🙌`);
+        msgUsuarios.push(`📢 *Lembrete*:*${nomeEvento}*! Esperamos você! 🙌`);
       }
     }
 
