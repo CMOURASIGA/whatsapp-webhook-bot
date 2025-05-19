@@ -1,7 +1,9 @@
 const express = require("express");
 const axios = require("axios");
-const app = express();
+const { google } = require("googleapis");
+const cron = require("node-cron");
 
+const app = express();
 app.use(express.json());
 
 const VERIFY_TOKEN = "meu_token_webhook";
@@ -41,95 +43,97 @@ async function enviarMensagem(numero, mensagem) {
     );
     console.log("✅ Mensagem enviada com sucesso para:", numero);
   } catch (error) {
-    console.error("❌ Erro ao enviar resposta:", JSON.stringify(error.response?.data || error, null, 2));
+    console.error("❌ Erro ao enviar mensagem:", JSON.stringify(error.response?.data || error, null, 2));
   }
 }
 
+async function verificarEventosParaLembrete() {
+  try {
+    const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+    });
+
+    const sheets = google.sheets({ version: "v4", auth: await auth.getClient() });
+
+    const spreadsheetId = "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8";
+    const range = "comunicados!A2:G";
+
+    const response = await sheets.spreadsheets.values.get({ spreadsheetId, range });
+    const rows = response.data.values;
+    if (!rows) return;
+
+    const hoje = new Date();
+    const amanha = new Date(hoje);
+    amanha.setDate(hoje.getDate() + 1);
+    const msgUsuarios = [];
+
+    for (const row of rows) {
+      const dataEvento = new Date(row[6]);
+      if (dataEvento.toDateString() === amanha.toDateString()) {
+        const nomeEvento = row[0];
+        msgUsuarios.push(`📢 *Lembrete*: Amanhã tem *${nomeEvento}* no EAC! Esperamos você! 🙌`);
+      }
+    }
+
+    const numeros = ["seu_numero1", "seu_numero2"]; // Substitua pelos números reais ou leia de uma aba
+    for (const numero of numeros) {
+      for (const mensagem of msgUsuarios) {
+        await enviarMensagem(numero, mensagem);
+      }
+    }
+  } catch (erro) {
+    console.error("Erro ao verificar eventos:", erro);
+  }
+}
+
+cron.schedule("0 9 * * *", () => {
+  console.log("⏰ Executando verificação de eventos para lembrete...");
+  verificarEventosParaLembrete();
+});
+
+app.get("/webhook", (req, res) => {
+  const mode = req.query["hub.mode"];
+  const token = req.query["hub.verify_token"];
+  const challenge = req.query["hub.challenge"];
+  if (mode === "subscribe" && token === VERIFY_TOKEN) {
+    res.status(200).send(challenge);
+  } else {
+    res.sendStatus(403);
+  }
+});
+
 app.post("/webhook", async (req, res) => {
   const body = req.body;
-
   if (body.object) {
     const mensagem = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-
-    if (!mensagem || !mensagem.text || !mensagem.from) {
-      return res.sendStatus(200);
-    }
+    if (!mensagem || !mensagem.text || !mensagem.from) return res.sendStatus(200);
 
     const textoRecebido = mensagem.text.body.toLowerCase().trim();
     const numero = mensagem.from;
 
-    const saudacoes = ["oi", "olá", "bom dia", "boa tarde", "boa noite"];
-    if (saudacoes.some(saud => textoRecebido.includes(saud))) {
+    if (["oi", "olá", "bom dia", "boa tarde", "boa noite"].some(s => textoRecebido.includes(s))) {
       await enviarMensagem(numero, "👋 Seja bem-vindo(a) ao EAC Porciúncula!\n\n" + montarMenuPrincipal());
       return res.sendStatus(200);
     }
 
-    if (textoRecebido === "1") {
-      await enviarMensagem(numero, `📝 *Formulário de Inscrição para Encontristas*
+    const respostas = {
+      "1": "📝 *Encontristas*\nhttps://docs.google.com/forms/d/e/1FAIpQLScrESiqWcBsnqMXGwiOOojIeU6ryhuWwZkL1kMr0QIeosgg5w/viewform?usp=preview",
+      "2": "📝 *Encontreiros*\nhttps://forms.gle/VzqYTs9yvnACiCew6",
+      "3": "📸 Instagram\nhttps://www.instagram.com/eacporciuncula/",
+      "4": "📬 E-mail\n✉️ eacporciunculadesantana@gmail.com",
+      "5": "📱 WhatsApp da Paróquia\nhttps://wa.me/552123422186",
+      "6": "📅 Eventos em breve estarão disponíveis.",
+      "7": "🎵 Spotify\nhttps://open.spotify.com/playlist/0JquaFjl5u9GrvSgML4S0R",
+      "8": "💬 Encontreiro\nhttps://wa.me/5521981845675"
+    };
 
-Se você deseja participar pela primeira vez do nosso encontro, preencha o formulário abaixo com atenção. 🙏
-
-👉 https://docs.google.com/forms/d/e/1FAIpQLScrESiqWcBsnqMXGwiOOojIeU6ryhuWwZkL1kMr0QIeosgg5w/viewform?usp=preview
-
-Estamos te esperando com alegria! 😄`);
-    } else if (textoRecebido === "2") {
-      await enviarMensagem(numero, `📝 *Formulário de Inscrição para Encontreiros*
-
-Se você já participou do EAC e quer servir nesta missão, esse é o seu lugar. 💪
-
-Preencha o formulário abaixo:
-👉 https://forms.gle/VzqYTs9yvnACiCew6
-
-Qualquer dúvida, fale com a gente:
-📲 https://wa.me/5521981845675`);
-    } else if (textoRecebido === "3") {
-      await enviarMensagem(numero, `📸 *Instagram Oficial do EAC Porciúncula*
-
-Siga a gente no Instagram e acompanhe:
-✨ Bastidores dos encontros
-✨ Fotos, reels e mensagens
-✨ Atualizações e convites especiais
-
-👉 https://www.instagram.com/eacporciuncula/`);
-    } else if (textoRecebido === "4") {
-      await enviarMensagem(numero, `📬 *Fale com a gente por e-mail!*
-
-Dúvidas, sugestões ou pedidos de oração?
-Entre em contato com a nossa equipe:
-
-✉️ eacporciunculadesantana@gmail.com`);
-    } else if (textoRecebido === "5") {
-      await enviarMensagem(numero, `📱 *WhatsApp da Secretaria Paroquial*
-
-Fale diretamente com a equipe da Paróquia Porciúncula para:
-- Informações gerais
-- Atendimentos e horários
-- Solicitações pastorais
-
-👉 https://wa.me/552123422186`);
-    } else if (textoRecebido === "6") {
-      await enviarMensagem(numero, `📅 *Eventos do EAC*
-
-Em breve você poderá consultar aqui os próximos eventos, atividades e datas importantes! Fique de olho! 👀`);
-    } else if (textoRecebido === "7") {
-      await enviarMensagem(numero, `🎵 *Playlist Oficial do EAC no Spotify*
-
-Reviva os momentos marcantes dos encontros com as músicas que tocam o coração. 💛
-
-👉 https://open.spotify.com/playlist/0JquaFjl5u9GrvSgML4S0R`);
-    } else if (textoRecebido === "8") {
-      await enviarMensagem(numero, `💬 *Falar com um Encontreiro*
-
-Está com alguma dúvida ou precisa conversar com alguém da equipe? Estamos aqui por você! 🙏
-
-📲 https://wa.me/5521981845675`);
+    if (respostas[textoRecebido]) {
+      await enviarMensagem(numero, respostas[textoRecebido]);
     } else {
-      await enviarMensagem(numero, `❓ *Ops! Essa opção não existe em nosso menu.*
-
-Confira abaixo as opções disponíveis e escolha uma delas para continuar:`);
-      await enviarMensagem(numero, montarMenuPrincipal());
+      await enviarMensagem(numero, `❓ *Ops! Opção inválida.*\n\n${montarMenuPrincipal()}`);
     }
-
     res.sendStatus(200);
   } else {
     res.sendStatus(404);
