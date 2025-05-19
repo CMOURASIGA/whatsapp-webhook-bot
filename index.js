@@ -77,7 +77,7 @@ async function verificarEventosParaLembrete() {
       }
     }
 
-    const numeros = ["seu_numero1", "seu_numero2"]; // Substitua pelos números reais ou leia de uma aba
+    const numeros = ["5521981845675", "5521981845675"]; // Substitua pelos números reais ou leia de uma aba
     for (const numero of numeros) {
       for (const mensagem of msgUsuarios) {
         await enviarMensagem(numero, mensagem);
