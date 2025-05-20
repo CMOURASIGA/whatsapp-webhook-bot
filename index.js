@@ -91,7 +91,7 @@ async function verificarEventosParaLembrete() {
   }
 }
 
-cron.schedule("20 11 * * *", () => {
+cron.schedule("30 11 * * *", () => {
   console.log("⏰ Executando verificação de eventos para lembrete às 10:50...");
   verificarEventosParaLembrete();
 });
