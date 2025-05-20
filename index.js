@@ -56,19 +56,23 @@ async function reativarContatosPendentes() {
     });
     const client = await auth.getClient();
     const sheets = google.sheets({ version: "v4", auth: client });
-    const spreadsheetId = "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8";
-    const range = "fila_envio!G2:G";
 
-    const getRes = await sheets.spreadsheets.values.get({ spreadsheetId, range });
-    const values = getRes.data.values || [];
-    const updates = values.map(row => row[0] === "Pendente" ? ["Ativo"] : [row[0]]);
+    const atualizarPendentes = async (spreadsheetId) => {
+      const range = "fila_envio!G2:G";
+      const getRes = await sheets.spreadsheets.values.get({ spreadsheetId, range });
+      const values = getRes.data.values || [];
+      const updates = values.map((row) => row[0] === "Pendente" ? ["Ativo"] : [row[0]]);
 
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range,
-      valueInputOption: "RAW",
-      resource: { values: updates },
-    });
+      await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range,
+        valueInputOption: "RAW",
+        resource: { values: updates },
+      });
+    };
+
+    await atualizarPendentes("1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8");
+    await atualizarPendentes("1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4");
 
     console.log("🔄 Contatos com status 'Pendente' atualizados para 'Ativo'.");
   } catch (error) {
@@ -85,9 +89,10 @@ async function verificarEventosParaLembrete() {
     });
 
     const sheets = google.sheets({ version: "v4", auth: await auth.getClient() });
-    const spreadsheetId = "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8";
+    const spreadsheetIdEventos = "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8";
+
     const rangeEventos = "comunicados!A2:G";
-    const response = await sheets.spreadsheets.values.get({ spreadsheetId, range: rangeEventos });
+    const response = await sheets.spreadsheets.values.get({ spreadsheetId: spreadsheetIdEventos, range: rangeEventos });
     const rows = response.data.values;
     if (!rows) return;
 
@@ -122,34 +127,39 @@ async function verificarEventosParaLembrete() {
       }
     }
 
-    const rangeFila = "fila_envio!F2:G";
-    const fila = await sheets.spreadsheets.values.get({ spreadsheetId, range: rangeFila });
-    const contatos = fila.data.values || [];
+    const planilhas = [
+      "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8",
+      "1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4"
+    ];
 
-    const numeros = contatos
-      .map(([numero, status], idx) => ({ numero, status, idx }))
-      .filter(c => c.status === "Ativo");
+    for (const spreadsheetId of planilhas) {
+      const rangeFila = "fila_envio!F2:G";
+      const fila = await sheets.spreadsheets.values.get({ spreadsheetId, range: rangeFila });
+      const contatos = fila.data.values || [];
 
-    console.log("📅 Eventos encontrados:", mensagens.length);
-    console.log("📨 Contatos ativos:", numeros.length);
+      const numeros = contatos
+        .map(([numero, status], idx) => ({ numero, status, idx }))
+        .filter(c => c.status === "Ativo");
 
-    const updates = contatos.map(([numero, status]) => [status]);
+      console.log("📨 Contatos ativos:", numeros.length);
+      const updates = contatos.map(([numero, status]) => [status]);
 
-    for (const contato of numeros) {
-      const saudacao = "🌞 Bom dia! Aqui é o EAC Porciúncula trazendo uma mensagem especial para você:";
-      for (const mensagem of mensagens) {
-        await enviarMensagem(contato.numero, saudacao);
-        await enviarMensagem(contato.numero, mensagem);
-        updates[contato.idx] = ["Pendente"];
+      for (const contato of numeros) {
+        const saudacao = "🌞 Bom dia! Aqui é o EAC Porciúncula trazendo uma mensagem especial para você:";
+        for (const mensagem of mensagens) {
+          await enviarMensagem(contato.numero, saudacao);
+          await enviarMensagem(contato.numero, mensagem);
+          updates[contato.idx] = ["Pendente"];
+        }
       }
-    }
 
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: "fila_envio!G2:G",
-      valueInputOption: "RAW",
-      resource: { values: updates },
-    });
+      await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: "fila_envio!G2:G",
+        valueInputOption: "RAW",
+        resource: { values: updates },
+      });
+    }
   } catch (erro) {
     console.error("Erro ao verificar eventos:", erro);
   }
@@ -174,11 +184,3 @@ cron.schedule("00 09 * * *", () => {
   console.log("⏰ Executando verificação de eventos para lembrete às 09:00...");
   verificarEventosParaLembrete();
 });
-
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT}`);
-});
-
-reativarContatosPendentes();
-verificarEventosParaLembrete();
