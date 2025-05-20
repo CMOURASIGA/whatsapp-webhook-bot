@@ -114,6 +114,11 @@ app.get("/ping", (req, res) => {
   res.status(200).send("pong");
 });
 
+app.head("/ping", (req, res) => {
+  console.log("⏱️ HEAD recebido para manter a instância ativa.");
+  res.sendStatus(200);
+});
+
 cron.schedule("00 09 * * *", () => {
   console.log("⏰ Executando verificação de eventos para lembrete às 09:00...");
   verificarEventosParaLembrete();
