@@ -72,12 +72,12 @@ async function verificarEventosParaLembrete() {
     for (const row of rows) {
       const dataEvento = new Date(row[6]);
       if (dataEvento.toDateString() === amanha.toDateString()) {
-        const nomeEvento = row[0];
-        msgUsuarios.push(`📢 *Lembrete*:*${nomeEvento}*! Esperamos você! 🙌`);
+        const titulo = row[0];
+        msgUsuarios.push(`📢 *Lembrete*: Amanhã teremos *${titulo}* no EAC. Esperamos você com alegria! 🙌`);
       }
     }
 
-    const numeros = ["5521981845675", "5521981845675"]; // Substitua pelos números reais ou leia de uma aba
+    const numeros = ["5521981845675", "5521981845675"];
     for (const numero of numeros) {
       for (const mensagem of msgUsuarios) {
         await enviarMensagem(numero, mensagem);
@@ -88,8 +88,8 @@ async function verificarEventosParaLembrete() {
   }
 }
 
-cron.schedule("0 9 * * *", () => {
-  console.log("⏰ Executando verificação de eventos para lembrete...");
+cron.schedule("10 10 * * *", () => {
+  console.log("⏰ Executando verificação de eventos para lembrete às 10:10...");
   verificarEventosParaLembrete();
 });
 
