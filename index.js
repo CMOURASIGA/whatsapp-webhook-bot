@@ -73,9 +73,15 @@ async function verificarEventosParaLembrete() {
       const valorData = row[6];
       if (!valorData) continue;
 
-      const dataEvento = new Date(valorData);
-      const dataValida = !isNaN(dataEvento.getTime());
+      let dataEvento;
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(valorData)) {
+        const [dia, mes, ano] = valorData.split("/");
+        dataEvento = new Date(`${ano}-${mes}-${dia}`);
+      } else {
+        dataEvento = new Date(valorData);
+      }
 
+      const dataValida = !isNaN(dataEvento.getTime());
       console.log("📆 Verificando data:", valorData, "->", dataEvento.toDateString());
 
       if (!dataValida) {
@@ -103,7 +109,7 @@ async function verificarEventosParaLembrete() {
   }
 }
 
-cron.schedule("44 11 * * *", () => {
+cron.schedule("00 12 * * *", () => {
   console.log("⏰ Executando verificação de eventos para lembrete às 11:20...");
   verificarEventosParaLembrete();
 });
