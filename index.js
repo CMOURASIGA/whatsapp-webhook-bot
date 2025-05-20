@@ -70,9 +70,21 @@ async function verificarEventosParaLembrete() {
     const msgUsuarios = [];
 
     for (const row of rows) {
-      const dataEvento = new Date(row[6]);
+      const valorData = row[6];
+      if (!valorData) continue;
+
+      const dataEvento = new Date(valorData);
+      const dataValida = !isNaN(dataEvento.getTime());
+
+      console.log("📆 Verificando data:", valorData, "->", dataEvento.toDateString());
+
+      if (!dataValida) {
+        console.log(`⚠️ Data inválida detectada: ${valorData}`);
+        continue;
+      }
+
       if (dataEvento.toDateString() === amanha.toDateString()) {
-        const titulo = row[0];
+        const titulo = row[0] || "(Sem título)";
         msgUsuarios.push(`📢 *Lembrete*: Amanhã teremos *${titulo}* no EAC. Esperamos você com alegria! 🙌`);
       }
     }
@@ -91,8 +103,8 @@ async function verificarEventosParaLembrete() {
   }
 }
 
-cron.schedule("30 11 * * *", () => {
-  console.log("⏰ Executando verificação de eventos para lembrete às 10:50...");
+cron.schedule("33 11 * * *", () => {
+  console.log("⏰ Executando verificação de eventos para lembrete às 11:20...");
   verificarEventosParaLembrete();
 });
 
