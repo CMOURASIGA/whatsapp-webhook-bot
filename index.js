@@ -175,6 +175,7 @@ app.head("/ping", (req, res) => {
   res.sendStatus(200);
 });
 
+// Agendamentos com cron
 cron.schedule("50 08 * * *", () => {
   console.log("🔁 Reativando contatos com status pendente...");
   reativarContatosPendentes();
@@ -184,5 +185,13 @@ cron.schedule("00 09 * * *", () => {
   console.log("⏰ Executando verificação de eventos para lembrete às 09:00...");
   verificarEventosParaLembrete();
 });
+
+// Execução imediata ao iniciar
 reativarContatosPendentes();
 verificarEventosParaLembrete();
+
+// INCLUSÃO ESSENCIAL PARA O RENDER DETECTAR A PORTA
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🚀 Servidor rodando na porta ${PORT}`);
+});
