@@ -7,7 +7,7 @@ const app = express();
 app.use(express.json());
 
 const VERIFY_TOKEN = "meu_token_webhook";
-const token = "EAAKOELSWQlIBO7rlAd5DN3uQZAnK8sCDvIVRVrdq2UxKiSeLdZBmcPgjPFhLG5CH9NZCActpPvm5X3ZArEM1WkGrYEcDKUywo89FQbyRk9lfGBv1jrUAooidyX7isp7ALbEZB6xAHwOMaZC1xDXkTZAywZCQ9kH3a5LcZCW2Vj5PC4eQD94R5RKGKSND9"; // seu token válido aqui
+const token = "EAA"; // seu token válido aqui
 const phone_number_id = "572870979253681";
 
 function montarMenuPrincipal() {
@@ -47,6 +47,35 @@ async function enviarMensagem(numero, mensagem) {
   }
 }
 
+async function reativarContatosPendentes() {
+  try {
+    const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+    const client = await auth.getClient();
+    const sheets = google.sheets({ version: "v4", auth: client });
+    const spreadsheetId = "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8";
+    const range = "fila_envio!G2:G";
+
+    const getRes = await sheets.spreadsheets.values.get({ spreadsheetId, range });
+    const values = getRes.data.values || [];
+    const updates = values.map((row, index) => row[0] === "Pendente" ? ["Ativo"] : [row[0]]);
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range,
+      valueInputOption: "RAW",
+      resource: { values: updates },
+    });
+
+    console.log("🔄 Contatos com status 'Pendente' atualizados para 'Ativo'.");
+  } catch (error) {
+    console.error("Erro ao atualizar contatos:", error);
+  }
+}
+
 async function verificarEventosParaLembrete() {
   try {
     const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
@@ -57,8 +86,8 @@ async function verificarEventosParaLembrete() {
 
     const sheets = google.sheets({ version: "v4", auth: await auth.getClient() });
     const spreadsheetId = "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8";
-    const rangeEventos = "comunicados!A2:G";
 
+    const rangeEventos = "comunicados!A2:G";
     const response = await sheets.spreadsheets.values.get({ spreadsheetId, range: rangeEventos });
     const rows = response.data.values;
     if (!rows) return;
@@ -66,7 +95,7 @@ async function verificarEventosParaLembrete() {
     const hoje = new Date();
     const amanha = new Date(hoje);
     amanha.setDate(hoje.getDate() + 1);
-    const msgUsuarios = [];
+    const mensagens = [];
 
     for (const row of rows) {
       const valorData = row[6];
@@ -90,25 +119,43 @@ async function verificarEventosParaLembrete() {
 
       if (dataEvento.toDateString() === amanha.toDateString()) {
         const titulo = row[1] || "(Sem título)";
-        msgUsuarios.push(`📢 *Lembrete*: Amanhã teremos *${titulo}* no EAC. Esperamos você com alegria! 🙌`);
+        mensagens.push(`📢 *Lembrete*: Amanhã teremos *${titulo}* no EAC. Esperamos você com alegria! 🙌`);
       }
     }
 
-    const numeros = ["5521981845675"];
-    console.log("📅 Eventos encontrados:", msgUsuarios.length);
+    const rangeFila = "fila_envio!F2:G";
+    const fila = await sheets.spreadsheets.values.get({ spreadsheetId, range: rangeFila });
+    const contatos = fila.data.values || [];
 
-    for (const numero of numeros) {
-      for (const mensagem of msgUsuarios) {
-        console.log(`📤 Enviando mensagem: ${mensagem} para ${numero}`);
-        await enviarMensagem(numero, mensagem);
+    const numeros = contatos
+      .map(([numero, status], idx) => ({ numero, status, idx }))
+      .filter(c => c.status === "Ativo");
+
+    console.log("📅 Eventos encontrados:", mensagens.length);
+    console.log("📨 Contatos ativos:", numeros.length);
+
+    const updates = contatos.map(([numero, status]) => [status]);
+
+    for (const contato of numeros) {
+      const saudacao = "🌞 Bom dia! Aqui é o EAC Porciúncula trazendo uma mensagem especial para você:";
+      for (const mensagem of mensagens) {
+        await enviarMensagem(contato.numero, saudacao);
+        await enviarMensagem(contato.numero, mensagem);
+        updates[contato.idx] = ["Pendente"];
       }
     }
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: "fila_envio!G2:G",
+      valueInputOption: "RAW",
+      resource: { values: updates },
+    });
   } catch (erro) {
     console.error("Erro ao verificar eventos:", erro);
   }
 }
 
-// ROTA DE PING – precisa vir ANTES do app.listen()
 app.get("/ping", (req, res) => {
   console.log("⏱️ Ping recebido para manter a instância ativa.");
   res.status(200).send("pong");
@@ -119,61 +166,17 @@ app.head("/ping", (req, res) => {
   res.sendStatus(200);
 });
 
+cron.schedule("50 08 * * *", () => {
+  console.log("🔁 Reativando contatos com status pendente...");
+  reativarContatosPendentes();
+});
+
 cron.schedule("00 09 * * *", () => {
   console.log("⏰ Executando verificação de eventos para lembrete às 09:00...");
   verificarEventosParaLembrete();
-});
-
-app.get("/webhook", (req, res) => {
-  const mode = req.query["hub.mode"];
-  const token = req.query["hub.verify_token"];
-  const challenge = req.query["hub.challenge"];
-  if (mode === "subscribe" && token === VERIFY_TOKEN) {
-    res.status(200).send(challenge);
-  } else {
-    res.sendStatus(403);
-  }
-});
-
-app.post("/webhook", async (req, res) => {
-  const body = req.body;
-  if (body.object) {
-    const mensagem = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-    if (!mensagem || !mensagem.text || !mensagem.from) return res.sendStatus(200);
-
-    const textoRecebido = mensagem.text.body.toLowerCase().trim();
-    const numero = mensagem.from;
-
-    if (["oi", "olá", "bom dia", "boa tarde", "boa noite"].some(s => textoRecebido.includes(s))) {
-      await enviarMensagem(numero, "👋 Seja bem-vindo(a) ao EAC Porciúncula!\n\n" + montarMenuPrincipal());
-      return res.sendStatus(200);
-    }
-
-    const respostas = {
-      "1": "📝 *Encontristas*\nhttps://docs.google.com/forms/d/e/1FAIpQLScrESiqWcBsnqMXGwiOOojIeU6ryhuWwZkL1kMr0QIeosgg5w/viewform?usp=preview",
-      "2": "📝 *Encontreiros*\nhttps://forms.gle/VzqYTs9yvnACiCew6",
-      "3": "📸 Instagram\nhttps://www.instagram.com/eacporciuncula/",
-      "4": "📬 E-mail\n✉️ eacporciunculadesantana@gmail.com",
-      "5": "📱 WhatsApp da Paróquia\nhttps://wa.me/552123422186",
-      "6": "📅 Eventos em breve estarão disponíveis.",
-      "7": "🎵 Spotify\nhttps://open.spotify.com/playlist/0JquaFjl5u9GrvSgML4S0R",
-      "8": "💬 Encontreiro\nhttps://wa.me/5521981845675"
-    };
-
-    if (respostas[textoRecebido]) {
-      await enviarMensagem(numero, respostas[textoRecebido]);
-    } else {
-      await enviarMensagem(numero, `❓ *Ops! Opção inválida.*\n\n${montarMenuPrincipal()}`);
-    }
-    res.sendStatus(200);
-  } else {
-    res.sendStatus(404);
-  }
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
-
-verificarEventosParaLembrete();
