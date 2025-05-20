@@ -90,7 +90,7 @@ async function verificarEventosParaLembrete() {
       }
 
       if (dataEvento.toDateString() === amanha.toDateString()) {
-        const titulo = row[0] || "(Sem título)";
+        const titulo = row[1] || "(Sem título)";
         msgUsuarios.push(`📢 *Lembrete*: Amanhã teremos *${titulo}* no EAC. Esperamos você com alegria! 🙌`);
       }
     }
@@ -109,7 +109,7 @@ async function verificarEventosParaLembrete() {
   }
 }
 
-cron.schedule("00 12 * * *", () => {
+cron.schedule("15 12 * * *", () => {
   console.log("⏰ Executando verificação de eventos para lembrete às 11:20...");
   verificarEventosParaLembrete();
 });
