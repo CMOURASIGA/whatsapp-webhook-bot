@@ -58,9 +58,9 @@ async function verificarEventosParaLembrete() {
     const sheets = google.sheets({ version: "v4", auth: await auth.getClient() });
 
     const spreadsheetId = "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8";
-    const range = "comunicados!A2:G";
+    const rangeEventos = "comunicados!A2:G";
 
-    const response = await sheets.spreadsheets.values.get({ spreadsheetId, range });
+    const response = await sheets.spreadsheets.values.get({ spreadsheetId, range: rangeEventos });
     const rows = response.data.values;
     if (!rows) return;
 
@@ -77,9 +77,12 @@ async function verificarEventosParaLembrete() {
       }
     }
 
-    const numeros = ["5521981845675", "5521981845675"];
+    const numeros = ["5521981845675"];
+    console.log("📅 Eventos encontrados:", msgUsuarios.length);
+
     for (const numero of numeros) {
       for (const mensagem of msgUsuarios) {
+        console.log(`📤 Enviando mensagem: ${mensagem} para ${numero}`);
         await enviarMensagem(numero, mensagem);
       }
     }
@@ -88,8 +91,8 @@ async function verificarEventosParaLembrete() {
   }
 }
 
-cron.schedule("50 10 * * *", () => {
-  console.log("⏰ Executando verificação de eventos para lembrete às 10:10...");
+cron.schedule("20 11 * * *", () => {
+  console.log("⏰ Executando verificação de eventos para lembrete às 10:50...");
   verificarEventosParaLembrete();
 });
 
