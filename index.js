@@ -115,7 +115,7 @@ app.get("/ping", (req, res) => {
   res.status(200).send("pong");
 });
 
-cron.schedule("20 11 * * *", () => {
+cron.schedule("00 09 * * *", () => {
   console.log("⏰ Executando verificação de eventos para lembrete às 11:20...");
   verificarEventosParaLembrete();
 });
