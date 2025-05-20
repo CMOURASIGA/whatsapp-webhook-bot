@@ -7,7 +7,7 @@ const app = express();
 app.use(express.json());
 
 const VERIFY_TOKEN = "meu_token_webhook";
-const token = "EAAKOELSWQlIBO7rlAd5DN3uQZAnK8sCDvIVRVrdq2UxKiSeLdZBmcPgjPFhLG5CH9NZCActpPvm5X3ZArEM1WkGrYEcDKUywo89FQbyRk9lfGBv1jrUAooidyX7isp7ALbEZB6xAHwOMaZC1xDXkTZAywZCQ9kH3a5LcZCW2Vj5PC4eQD94R5RKGKSND9"; // seu token válido aqui
+const token = "EA.."; // seu token válido aqui
 const phone_number_id = "572870979253681";
 
 function montarMenuPrincipal() {
@@ -90,7 +90,7 @@ async function verificarEventosParaLembrete() {
       }
 
       if (dataEvento.toDateString() === amanha.toDateString()) {
-        const titulo = row[1] || "(Sem título)";
+        const titulo = row[1] || "(Sem título)"; // coluna B
         msgUsuarios.push(`📢 *Lembrete*: Amanhã teremos *${titulo}* no EAC. Esperamos você com alegria! 🙌`);
       }
     }
@@ -109,7 +109,13 @@ async function verificarEventosParaLembrete() {
   }
 }
 
-cron.schedule("15 12 * * *", () => {
+// Ping diário para manter o Render ativo
+app.get("/ping", (req, res) => {
+  console.log("⏱️ Ping recebido para manter a instância ativa.");
+  res.status(200).send("pong");
+});
+
+cron.schedule("20 11 * * *", () => {
   console.log("⏰ Executando verificação de eventos para lembrete às 11:20...");
   verificarEventosParaLembrete();
 });
