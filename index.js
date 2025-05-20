@@ -7,7 +7,7 @@ const app = express();
 app.use(express.json());
 
 const VERIFY_TOKEN = "meu_token_webhook";
-const token = "EAAKOELSWQlIBO7rlAd5DN3uQZAnK8sCDvIVRVrdq2UxKiSeLdZBmcPgjPFhLG5CH9NZCActpPvm5X3ZArEM1WkGrYEcDKUywo89FQbyRk9lfGBv1jrUAooidyX7isp7ALbEZB6xAHwOMaZC1xDXkTZAywZCQ9kH3a5LcZCW2Vj5PC4eQD94R5RKGKSND9"; // seu token válido aqui
+const token = "EAAKOELSWQlIBO7rlAd5DN3uQZAnK8sCDvIVRVrdq2UxKiSeLdZBmcPgjPFhLG5CH9NZCActpPvm5X3ZArEM1WkGrYEcDKUywo89FQbyRk9lfGBv1jrUAooidyX7isp7ALbEZB6xAHwOMaZC1xDXkTZAywZCQ9kH3a5LcZCW2Vj5PC4eQD94R5RKGKSND9";
 const phone_number_id = "572870979253681";
 
 function montarMenuPrincipal() {
@@ -46,6 +46,47 @@ async function enviarMensagem(numero, mensagem) {
     console.error("❌ Erro ao enviar mensagem:", JSON.stringify(error.response?.data || error, null, 2));
   }
 }
+
+// RECEBE MENSAGENS DO WHATSAPP E RESPONDE COM O MENU
+app.post("/webhook", (req, res) => {
+  const body = req.body;
+  console.log("📥 Webhook recebido:", JSON.stringify(body, null, 2));
+
+  if (
+    body.object &&
+    body.entry &&
+    body.entry[0].changes &&
+    body.entry[0].changes[0].value.messages &&
+    body.entry[0].changes[0].value.messages[0]
+  ) {
+    const mensagem = body.entry[0].changes[0].value.messages[0];
+    const numero = mensagem.from;
+    const textoRecebido = mensagem.text?.body?.toLowerCase() || "";
+
+    console.log(`📨 Mensagem recebida de ${numero}: ${textoRecebido}`);
+
+    if (textoRecebido === "oi" || textoRecebido.includes("menu")) {
+      const menu = montarMenuPrincipal();
+      enviarMensagem(numero, menu);
+    }
+  }
+
+  res.sendStatus(200);
+});
+
+// VERIFICAÇÃO DO TOKEN DO WEBHOOK
+app.get("/webhook", (req, res) => {
+  const mode = req.query["hub.mode"];
+  const token = req.query["hub.verify_token"];
+  const challenge = req.query["hub.challenge"];
+
+  if (mode === "subscribe" && token === VERIFY_TOKEN) {
+    console.log("✅ Webhook verificado com sucesso.");
+    res.status(200).send(challenge);
+  } else {
+    res.sendStatus(403);
+  }
+});
 
 async function reativarContatosPendentes() {
   try {
@@ -165,6 +206,7 @@ async function verificarEventosParaLembrete() {
   }
 }
 
+// Rota de teste
 app.get("/ping", (req, res) => {
   console.log("⏱️ Ping recebido para manter a instância ativa.");
   res.status(200).send("pong");
@@ -175,7 +217,7 @@ app.head("/ping", (req, res) => {
   res.sendStatus(200);
 });
 
-// Agendamentos com cron
+// Agendamentos
 cron.schedule("50 08 * * *", () => {
   console.log("🔁 Reativando contatos com status pendente...");
   reativarContatosPendentes();
@@ -186,11 +228,11 @@ cron.schedule("00 09 * * *", () => {
   verificarEventosParaLembrete();
 });
 
-// Execução imediata ao iniciar
+// Execução imediata
 reativarContatosPendentes();
 verificarEventosParaLembrete();
 
-// INCLUSÃO ESSENCIAL PARA O RENDER DETECTAR A PORTA
+// Inicialização
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
