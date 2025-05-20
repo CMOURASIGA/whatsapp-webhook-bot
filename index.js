@@ -56,7 +56,6 @@ async function verificarEventosParaLembrete() {
     });
 
     const sheets = google.sheets({ version: "v4", auth: await auth.getClient() });
-
     const spreadsheetId = "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8";
     const rangeEventos = "comunicados!A2:G";
 
@@ -90,7 +89,7 @@ async function verificarEventosParaLembrete() {
       }
 
       if (dataEvento.toDateString() === amanha.toDateString()) {
-        const titulo = row[1] || "(Sem título)"; // coluna B
+        const titulo = row[1] || "(Sem título)";
         msgUsuarios.push(`📢 *Lembrete*: Amanhã teremos *${titulo}* no EAC. Esperamos você com alegria! 🙌`);
       }
     }
@@ -109,14 +108,14 @@ async function verificarEventosParaLembrete() {
   }
 }
 
-// Ping diário para manter o Render ativo
+// ROTA DE PING – precisa vir ANTES do app.listen()
 app.get("/ping", (req, res) => {
   console.log("⏱️ Ping recebido para manter a instância ativa.");
   res.status(200).send("pong");
 });
 
 cron.schedule("00 09 * * *", () => {
-  console.log("⏰ Executando verificação de eventos para lembrete às 11:20...");
+  console.log("⏰ Executando verificação de eventos para lembrete às 09:00...");
   verificarEventosParaLembrete();
 });
 
