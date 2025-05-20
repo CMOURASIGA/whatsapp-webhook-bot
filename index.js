@@ -7,7 +7,7 @@ const app = express();
 app.use(express.json());
 
 const VERIFY_TOKEN = "meu_token_webhook";
-const token = "EA.."; // seu token válido aqui
+const token = "EAAKOELSWQlIBO7rlAd5DN3uQZAnK8sCDvIVRVrdq2UxKiSeLdZBmcPgjPFhLG5CH9NZCActpPvm5X3ZArEM1WkGrYEcDKUywo89FQbyRk9lfGBv1jrUAooidyX7isp7ALbEZB6xAHwOMaZC1xDXkTZAywZCQ9kH3a5LcZCW2Vj5PC4eQD94R5RKGKSND9"; // seu token válido aqui
 const phone_number_id = "572870979253681";
 
 function montarMenuPrincipal() {
