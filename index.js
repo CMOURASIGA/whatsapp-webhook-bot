@@ -184,3 +184,5 @@ cron.schedule("00 09 * * *", () => {
   console.log("⏰ Executando verificação de eventos para lembrete às 09:00...");
   verificarEventosParaLembrete();
 });
+reativarContatosPendentes();
+verificarEventosParaLembrete();
