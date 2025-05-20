@@ -7,7 +7,7 @@ const app = express();
 app.use(express.json());
 
 const VERIFY_TOKEN = "meu_token_webhook";
-const token = "EAAKOELSWQlIBO7rlAd5DN3uQZAnK8sCDvIVRVrdq2UxKiSeLdZBmcPgjPFhLG5CH9NZCActpPvm5X3ZArEM1WkGrYEcDKUywo89FQbyRk9lfGBv1jrUAooidyX7isp7ALbEZB6xAHwOMaZC1xDXkTZAywZCQ9kH3a5LcZCW2Vj5PC4eQD94R5RKGKSND9"; // seu token válido aqui
+const token = "EAA"; // seu token válido aqui
 const phone_number_id = "572870979253681";
 
 function montarMenuPrincipal() {
@@ -61,7 +61,7 @@ async function reativarContatosPendentes() {
 
     const getRes = await sheets.spreadsheets.values.get({ spreadsheetId, range });
     const values = getRes.data.values || [];
-    const updates = values.map((row, index) => row[0] === "Pendente" ? ["Ativo"] : [row[0]]);
+    const updates = values.map(row => row[0] === "Pendente" ? ["Ativo"] : [row[0]]);
 
     await sheets.spreadsheets.values.update({
       spreadsheetId,
@@ -86,7 +86,6 @@ async function verificarEventosParaLembrete() {
 
     const sheets = google.sheets({ version: "v4", auth: await auth.getClient() });
     const spreadsheetId = "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8";
-
     const rangeEventos = "comunicados!A2:G";
     const response = await sheets.spreadsheets.values.get({ spreadsheetId, range: rangeEventos });
     const rows = response.data.values;
@@ -175,3 +174,11 @@ cron.schedule("00 09 * * *", () => {
   console.log("⏰ Executando verificação de eventos para lembrete às 09:00...");
   verificarEventosParaLembrete();
 });
+
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+  console.log(`🚀 Servidor rodando na porta ${PORT}`);
+});
+
+reativarContatosPendentes();
+verificarEventosParaLembrete();
