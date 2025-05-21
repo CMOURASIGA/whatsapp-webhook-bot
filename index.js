@@ -234,6 +234,24 @@ app.post("/webhook", async (req, res) => {
   }
 });
 
+app.get("/disparo", async (req, res) => {
+  const chave = req.query.chave;
+  const chaveCorreta = process.env.CHAVE_DISPARO;
+
+  if (chave !== chaveCorreta) {
+    return res.status(401).send("❌ Acesso não autorizado.");
+  }
+
+  try {
+    console.log("📢 Disparo manual solicitado...");
+    await verificarEventosParaLembrete();
+    res.status(200).send("✅ Disparo manual concluído com sucesso!");
+  } catch (erro) {
+    console.error("Erro no disparo manual:", erro);
+    res.status(500).send("❌ Erro ao processar o disparo.");
+  }
+});
+
 // CRON Jobs
 cron.schedule("50 08 * * *", () => {
   console.log("🔁 Reativando contatos com status pendente...");
