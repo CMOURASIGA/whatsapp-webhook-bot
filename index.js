@@ -12,16 +12,16 @@ const phone_number_id = "572870979253681";
 
 function montarMenuPrincipal() {
   return (
-    "\uD83D\uDCCB *Menu Principal - EAC Porci\u00fancula* \uD83D\uDCCB\n\n" +
-    "1. Formul\u00e1rio de Inscri\u00e7\u00e3o para Encontristas\n" +
-    "2. Formul\u00e1rio de Inscri\u00e7\u00e3o para Encontreiros\n" +
+    "📋 *Menu Principal - EAC Porciúncula* 📋\n\n" +
+    "1. Formulário de Inscrição para Encontristas\n" +
+    "2. Formulário de Inscrição para Encontreiros\n" +
     "3. Instagram do EAC\n" +
     "4. E-mail de contato\n" +
-    "5. WhatsApp da Par\u00f3quia\n" +
+    "5. WhatsApp da Paróquia\n" +
     "6. Eventos do EAC\n" +
     "7. Playlist no Spotify\n" +
     "8. Falar com um Encontreiro\n\n" +
-    "Digite o n\u00famero correspondente \u00e0 op\u00e7\u00e3o desejada. \uD83D\uDC47"
+    "Digite o número correspondente à opção desejada. 👇"
   );
 }
 
@@ -41,9 +41,9 @@ async function enviarMensagem(numero, mensagem) {
         },
       }
     );
-    console.log("\u2705 Mensagem enviada com sucesso para:", numero);
+    console.log("✅ Mensagem enviada com sucesso para:", numero);
   } catch (error) {
-    console.error("\u274C Erro ao enviar mensagem:", JSON.stringify(error.response?.data || error, null, 2));
+    console.error("❌ Erro ao enviar mensagem:", JSON.stringify(error.response?.data || error, null, 2));
   }
 }
 
@@ -74,7 +74,7 @@ async function reativarContatosPendentes() {
     await atualizarPendentes("1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8");
     await atualizarPendentes("1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4");
 
-    console.log("\uD83D\uDD04 Contatos com status 'Pendente' atualizados para 'Ativo'.");
+    console.log("🔄 Contatos com status 'Pendente' atualizados para 'Ativo'.");
   } catch (error) {
     console.error("Erro ao atualizar contatos:", error);
   }
@@ -114,8 +114,8 @@ async function verificarEventosParaLembrete() {
       }
 
       if (!isNaN(dataEvento.getTime()) && dataEvento.toDateString() === amanha.toDateString()) {
-        const titulo = row[1] || "(Sem t\u00edtulo)";
-        mensagens.push(`\uD83D\uDCE2 *Lembrete*: Amanh\u00e3 teremos *${titulo}* no EAC. Esperamos voc\u00ea com alegria! \uD83D\uDE4C`);
+        const titulo = row[1] || "(Sem título)";
+        mensagens.push(`📢 *Lembrete*: Amanhã teremos *${titulo}* no EAC. Esperamos você com alegria! 🙌`);
       }
     }
 
@@ -133,11 +133,11 @@ async function verificarEventosParaLembrete() {
         .map(([numero, status], idx) => ({ numero, status, idx }))
         .filter(c => c.status === "Ativo");
 
-      console.log("\uD83D\uDCE8 Contatos ativos:", numeros.length);
+      console.log("📨 Contatos ativos:", numeros.length);
       const updates = contatos.map(([numero, status]) => [status]);
 
       for (const contato of numeros) {
-        const saudacao = "\uD83C\uDF1E Bom dia! Aqui \u00e9 o EAC Porci\u00fancula trazendo uma mensagem especial para voc\u00ea:";
+        const saudacao = "🌞 Bom dia! Aqui é o EAC Porciúncula trazendo uma mensagem especial para você:";
         for (const mensagem of mensagens) {
           await enviarMensagem(contato.numero, saudacao);
           await enviarMensagem(contato.numero, mensagem);
@@ -157,20 +157,97 @@ async function verificarEventosParaLembrete() {
   }
 }
 
-// CRON
+app.post("/webhook", async (req, res) => {
+  const body = req.body;
+  if (body.object) {
+    const mensagem = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+    if (!mensagem || !mensagem.text || !mensagem.from) return res.sendStatus(200);
+
+    const textoRecebido = mensagem.text.body.toLowerCase().trim();
+    const numero = mensagem.from;
+
+    if (["oi", "olá", "bom dia", "boa tarde", "boa noite"].some(s => textoRecebido.includes(s))) {
+      await enviarMensagem(numero, "👋 Seja bem-vindo(a) ao EAC Porciúncula!\n\n" + montarMenuPrincipal());
+      return res.sendStatus(200);
+    }
+
+    if (textoRecebido === "6") {
+      const saudacao = "📅 *Agenda de Eventos do EAC - Mês Atual*";
+
+      try {
+        const resposta = await axios.get("https://script.google.com/macros/s/AKfycbyKiRCN2ynBvdkWqvNY-WjaNQ1_xriYRI-fh0QuX_Dd2fBZqRBCdyl1RizBbU4_mnOrbA/exec");
+        const { status, links } = resposta.data;
+
+        if (status === "SEM_EVENTOS") {
+          await enviarMensagem(numero, "⚠️ Ainda não há eventos cadastrados para este mês.");
+        } else if (Array.isArray(links)) {
+          await enviarMensagem(numero, saudacao);
+          for (const link of links) {
+            await axios.post(
+              `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
+              {
+                messaging_product: "whatsapp",
+                to: numero,
+                type: "image",
+                image: { link }
+              },
+              {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  "Content-Type": "application/json"
+                }
+              }
+            );
+          }
+        } else {
+          await enviarMensagem(numero, "⚠️ Ocorreu um erro ao buscar os eventos.");
+        }
+      } catch (erro) {
+        console.error("Erro ao buscar eventos do mês:", erro);
+        await enviarMensagem(numero, "❌ Não conseguimos carregar a agenda agora. Tente novamente mais tarde.");
+      }
+
+      return res.sendStatus(200);
+    }
+
+    const respostas = {
+      "1": "📝 *Inscrição de Encontristas*\n\nSe você quer participar como *adolescente encontrista* no nosso próximo EAC, preencha este formulário com atenção:\n👉 https://docs.google.com/forms/d/e/1FAIpQLScrESiqWcBsnqMXGwiOOojIeU6ryhuWwZkL1kMr0QIeosgg5w/viewform?usp=preview",
+      "2": "📝 *Inscrição de Encontreiros*\n\nVocê deseja servir nessa missão linda como *encontreiro*? Preencha aqui para fazer parte da equipe:\n👉 https://forms.gle/VzqYTs9yvnACiCew6",
+      "3": "📸 *Nosso Instagram Oficial*\n\nFique por dentro de tudo que acontece no EAC Porciúncula. Curta, compartilhe e acompanhe nossos eventos:\n👉 https://www.instagram.com/eacporciuncula/",
+      "4": "📬 *Fale conosco por e-mail*\n\nDúvidas, sugestões ou parcerias? Escreva para a gente:\n✉️ eacporciunculadesantana@gmail.com",
+      "5": "📱 *WhatsApp da Paróquia*\n\nQuer falar direto com a secretaria da paróquia? Acesse:\n👉 https://wa.me/552123422186",
+      "7": "🎵 *Nossa Playlist no Spotify*\n\nMúsicas que marcaram nossos encontros e nos inspiram todos os dias:\n👉 https://open.spotify.com/playlist/0JquaFjl5u9GrvSgML4S0R",
+      "8": "💬 *Falar com um Encontreiro*\n\nSe quiser tirar dúvidas com alguém da equipe, pode chamar aqui:\n👉 https://wa.me/5521981845675"
+    };
+
+    if (respostas[textoRecebido]) {
+      await enviarMensagem(numero, respostas[textoRecebido]);
+    } else {
+      await enviarMensagem(numero, `❓ *Ops! Opção inválida.*\n\n${montarMenuPrincipal()}`);
+    }
+
+    res.sendStatus(200);
+  } else {
+    res.sendStatus(404);
+  }
+});
+
+// CRON Jobs
 cron.schedule("50 08 * * *", () => {
-  console.log("\uD83D\uDD01 Reativando contatos com status pendente...");
+  console.log("🔁 Reativando contatos com status pendente...");
   reativarContatosPendentes();
 });
 
 cron.schedule("00 09 * * *", () => {
-  console.log("\u23F0 Executando verifica\u00e7\u00e3o de eventos para lembrete \u00e0s 09:00...");
+  console.log("⏰ Executando verificação de eventos para lembrete às 09:00...");
   verificarEventosParaLembrete();
-});
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
 
 reativarContatosPendentes();
 verificarEventosParaLembrete();
+
+// Porta obrigatória no Render
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🚀 Servidor rodando na porta ${PORT}`);
+});
