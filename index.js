@@ -167,6 +167,10 @@ cron.schedule("00 09 * * *", () => {
   console.log("\u23F0 Executando verifica\u00e7\u00e3o de eventos para lembrete \u00e0s 09:00...");
   verificarEventosParaLembrete();
 });
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🚀 Servidor rodando na porta ${PORT}`);
+});
 
 reativarContatosPendentes();
 verificarEventosParaLembrete();
