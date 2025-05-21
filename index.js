@@ -14,16 +14,16 @@ const phone_number_id = "572870979253681";
 function montarMenuPrincipal() {
   return (
     "📋 *Menu Principal - EAC Porciúncula* 📋\n\n" +
-    "1. Formulário de Inscrição para Encontristas\n" +
-    "2. Formulário de Inscrição para Encontreiros\n" +
-    "3. Instagram do EAC\n" +
-    "4. E-mail de contato\n" +
-    "5. WhatsApp da Paróquia\n" +
-    "6. Eventos do EAC\n" +
-    "7. Playlist no Spotify\n" +
-    "8. Falar com um Encontreiro\n" +
-    "9. Mensagem do Dia\n" +
-    "10. Versículo do Dia\n\n" +
+    "1️⃣ Formulário de Inscrição para Encontristas\n" +
+    "2️⃣ Formulário de Inscrição para Encontreiros\n" +
+    "📸 Instagram do EAC\n" +
+    "📬 E-mail de contato\n" +
+    "📱 WhatsApp da Paróquia\n" +
+    "📅 Eventos do EAC\n" +
+    "🎵 Playlist no Spotify\n" +
+    "💬 Falar com um Encontreiro\n" +
+    "💡 Mensagem do Dia\n" +
+    "📖 Versículo do Dia\n\n" +
     "Digite o número correspondente à opção desejada. 👇"
   );
 }
