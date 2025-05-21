@@ -180,9 +180,10 @@ app.post("/webhook", async (req, res) => {
 
         if (status === "SEM_EVENTOS") {
           await enviarMensagem(numero, "⚠️ Ainda não há eventos cadastrados para este mês.");
-        } else if (Array.isArray(links)) {
+        } else if (links) {
+          const imagens = Array.isArray(links) ? links : [links];
           await enviarMensagem(numero, saudacao);
-          for (const link of links) {
+          for (const link of imagens) {
             await axios.post(
               `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
               {
@@ -202,6 +203,7 @@ app.post("/webhook", async (req, res) => {
         } else {
           await enviarMensagem(numero, "⚠️ Ocorreu um erro ao buscar os eventos.");
         }
+
       } catch (erro) {
         console.error("Erro ao buscar eventos do mês:", erro);
         await enviarMensagem(numero, "❌ Não conseguimos carregar a agenda agora. Tente novamente mais tarde.");
