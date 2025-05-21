@@ -14,16 +14,16 @@ const phone_number_id = "572870979253681";
 function montarMenuPrincipal() {
   return (
     "📋 *Menu Principal - EAC Porciúncula* 📋\n\n" +
-    "1️⃣ Formulário de Inscrição para Encontristas\n" +
-    "2️⃣ Formulário de Inscrição para Encontreiros\n" +
-    "📸 Instagram do EAC\n" +
-    "📬 E-mail de contato\n" +
-    "📱 WhatsApp da Paróquia\n" +
-    "📅 Eventos do EAC\n" +
-    "🎵 Playlist no Spotify\n" +
-    "💬 Falar com um Encontreiro\n" +
-    "💡 Mensagem do Dia\n" +
-    "📖 Versículo do Dia\n\n" +
+    "1 - 1️⃣ Formulário de Inscrição para Encontristas\n" +
+    "2 - 2️⃣ Formulário de Inscrição para Encontreiros\n" +
+    "3 - 📸 Instagram do EAC\n" +
+    "4 - 📬 E-mail de contato\n" +
+    "5 - 📱 WhatsApp da Paróquia\n" +
+    "6 - 📅 Eventos do EAC\n" +
+    "7 - 🎵 Playlist no Spotify\n" +
+    "8 - 💬 Falar com um Encontreiro\n" +
+    "9 - 💡 Mensagem do Dia\n" +
+    "10 - 📖 Versículo do Dia\n\n" +
     "Digite o número correspondente à opção desejada. 👇"
   );
 }
@@ -83,6 +83,12 @@ async function reativarContatosPendentes() {
   } catch (error) {
     console.error("Erro ao atualizar contatos:", error);
   }
+}
+
+// Verificação e resposta automática a saudações
+function ehSaudacao(texto) {
+  const saudacoes = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "menu"];
+  return saudacoes.some(s => texto.includes(s));
 }
 
 // Verifica eventos da aba 'comunicados' para enviar lembrete
@@ -172,10 +178,10 @@ app.post("/webhook", async (req, res) => {
     const textoRecebido = mensagem.text.body.toLowerCase().trim();
     const numero = mensagem.from;
 
-    if (["oi", "olá", "bom dia", "boa tarde", "boa noite"].some(s => textoRecebido.includes(s))) {
-      await enviarMensagem(numero, "👋 Seja bem-vindo(a) ao EAC Porciúncula!\n\n" + montarMenuPrincipal());
-      return res.sendStatus(200);
-    }
+    if (ehSaudacao(textoRecebido)) {
+    await enviarMensagem(numero, "👋 Seja bem-vindo(a) ao EAC Porciúncula!\n\n" + montarMenuPrincipal());
+    return res.sendStatus(200);
+  }
 
     const respostas = {
       "1": "📝 *Inscrição de Encontristas*\n\nSe você quer participar como *adolescente encontrista* no nosso próximo EAC, preencha este formulário com atenção:\n👉 https://docs.google.com/forms/d/e/1FAIpQLScrESiqWcBsnqMXGwiOOojIeU6ryhuWwZkL1kMr0QIeosgg5w/viewform?usp=preview",
