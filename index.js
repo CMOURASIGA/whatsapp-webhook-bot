@@ -175,7 +175,7 @@ app.post("/webhook", async (req, res) => {
       const saudacao = "📅 *Agenda de Eventos do EAC - Mês Atual*";
 
       try {
-        const resposta = await axios.get("https://script.google.com/macros/s/AKfycbwsVlwcpHMQzA28FS-gAKUL-GXS_8_7_kBJt80c2P8rxflo3RNfrwZzJYIodCbrjpOokQ/exec");
+        const resposta = await axios.get("https://script.google.com/macros/s/AKfycbxDsVKP1oqrYWpFh6uGn-1_2UR3jeICDZvLsmX1-OYtWy_Pp2aC0Au2DAWGUjA0FwJRDg/exec");
         const { status, links } = resposta.data;
 
         if (status === "SEM_EVENTOS") {
