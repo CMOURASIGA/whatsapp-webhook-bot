@@ -10,6 +10,7 @@ const VERIFY_TOKEN = "meu_token_webhook";
 const token = process.env.TOKEN_WHATSAPP;
 const phone_number_id = "572870979253681";
 
+// Função para montar o menu principal
 function montarMenuPrincipal() {
   return (
     "📋 *Menu Principal - EAC Porciúncula* 📋\n\n" +
@@ -20,11 +21,14 @@ function montarMenuPrincipal() {
     "5. WhatsApp da Paróquia\n" +
     "6. Eventos do EAC\n" +
     "7. Playlist no Spotify\n" +
-    "8. Falar com um Encontreiro\n\n" +
+    "8. Falar com um Encontreiro\n" +
+    "9. Mensagem do Dia\n" +
+    "10. Versículo do Dia\n\n" +
     "Digite o número correspondente à opção desejada. 👇"
   );
 }
 
+// Enviar mensagem para número via WhatsApp Cloud API
 async function enviarMensagem(numero, mensagem) {
   try {
     await axios.post(
@@ -47,6 +51,7 @@ async function enviarMensagem(numero, mensagem) {
   }
 }
 
+// Atualiza contatos pendentes para ativo
 async function reativarContatosPendentes() {
   try {
     const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
@@ -80,6 +85,7 @@ async function reativarContatosPendentes() {
   }
 }
 
+// Verifica eventos da aba 'comunicados' para enviar lembrete
 async function verificarEventosParaLembrete() {
   try {
     const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
@@ -90,7 +96,6 @@ async function verificarEventosParaLembrete() {
 
     const sheets = google.sheets({ version: "v4", auth: await auth.getClient() });
     const spreadsheetIdEventos = "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8";
-
     const rangeEventos = "comunicados!A2:G";
     const response = await sheets.spreadsheets.values.get({ spreadsheetId: spreadsheetIdEventos, range: rangeEventos });
     const rows = response.data.values;
@@ -157,6 +162,7 @@ async function verificarEventosParaLembrete() {
   }
 }
 
+// Webhook principal
 app.post("/webhook", async (req, res) => {
   const body = req.body;
   if (body.object) {
@@ -171,9 +177,19 @@ app.post("/webhook", async (req, res) => {
       return res.sendStatus(200);
     }
 
+    const respostas = {
+      "1": "📝 *Inscrição de Encontristas*\n\nSe você quer participar como *adolescente encontrista* no nosso próximo EAC, preencha este formulário com atenção:\n👉 https://docs.google.com/forms/d/e/1FAIpQLScrESiqWcBsnqMXGwiOOojIeU6ryhuWwZkL1kMr0QIeosgg5w/viewform?usp=preview",
+      "2": "📝 *Inscrição de Encontreiros*\n\nVocê deseja servir nessa missão linda como *encontreiro*? Preencha aqui para fazer parte da equipe:\n👉 https://forms.gle/VzqYTs9yvnACiCew6",
+      "3": "📸 *Nosso Instagram Oficial*\n\nFique por dentro de tudo que acontece no EAC Porciúncula. Curta, compartilhe e acompanhe nossos eventos:\n👉 https://www.instagram.com/eacporciuncula/",
+      "4": "📬 *Fale conosco por e-mail*\n\nDúvidas, sugestões ou parcerias? Escreva para a gente:\n✉️ eacporciunculadesantana@gmail.com",
+      "5": "📱 *WhatsApp da Paróquia*\n\nQuer falar direto com a secretaria da paróquia? Acesse:\n👉 https://wa.me/552123422186",
+      "6": "", // será tratado abaixo
+      "7": "🎵 *Nossa Playlist no Spotify*\n\nMúsicas que marcaram nossos encontros e nos inspiram todos os dias:\n👉 https://open.spotify.com/playlist/0JquaFjl5u9GrvSgML4S0R",
+      "8": "💬 *Falar com um Encontreiro*\n\nSe quiser tirar dúvidas com alguém da equipe, pode chamar aqui:\n👉 https://wa.me/5521981845675",
+    };
+
     if (textoRecebido === "6") {
       const saudacao = "📅 *Agenda de Eventos do EAC - Mês Atual*";
-
       try {
         const resposta = await axios.get(process.env.URL_APP_SCRIPT_EVENTOS);
         const { status, links } = resposta.data;
@@ -190,20 +206,19 @@ app.post("/webhook", async (req, res) => {
                 messaging_product: "whatsapp",
                 to: numero,
                 type: "image",
-                image: { link }
+                image: { link },
               },
               {
                 headers: {
                   Authorization: `Bearer ${token}`,
-                  "Content-Type": "application/json"
-                }
+                  "Content-Type": "application/json",
+                },
               }
             );
           }
         } else {
           await enviarMensagem(numero, "⚠️ Ocorreu um erro ao buscar os eventos.");
         }
-
       } catch (erro) {
         console.error("Erro ao buscar eventos do mês:", erro);
         await enviarMensagem(numero, "❌ Não conseguimos carregar a agenda agora. Tente novamente mais tarde.");
@@ -212,15 +227,27 @@ app.post("/webhook", async (req, res) => {
       return res.sendStatus(200);
     }
 
-    const respostas = {
-      "1": "📝 *Inscrição de Encontristas*\n\nSe você quer participar como *adolescente encontrista* no nosso próximo EAC, preencha este formulário com atenção:\n👉 https://docs.google.com/forms/d/e/1FAIpQLScrESiqWcBsnqMXGwiOOojIeU6ryhuWwZkL1kMr0QIeosgg5w/viewform?usp=preview",
-      "2": "📝 *Inscrição de Encontreiros*\n\nVocê deseja servir nessa missão linda como *encontreiro*? Preencha aqui para fazer parte da equipe:\n👉 https://forms.gle/VzqYTs9yvnACiCew6",
-      "3": "📸 *Nosso Instagram Oficial*\n\nFique por dentro de tudo que acontece no EAC Porciúncula. Curta, compartilhe e acompanhe nossos eventos:\n👉 https://www.instagram.com/eacporciuncula/",
-      "4": "📬 *Fale conosco por e-mail*\n\nDúvidas, sugestões ou parcerias? Escreva para a gente:\n✉️ eacporciunculadesantana@gmail.com",
-      "5": "📱 *WhatsApp da Paróquia*\n\nQuer falar direto com a secretaria da paróquia? Acesse:\n👉 https://wa.me/552123422186",
-      "7": "🎵 *Nossa Playlist no Spotify*\n\nMúsicas que marcaram nossos encontros e nos inspiram todos os dias:\n👉 https://open.spotify.com/playlist/0JquaFjl5u9GrvSgML4S0R",
-      "8": "💬 *Falar com um Encontreiro*\n\nSe quiser tirar dúvidas com alguém da equipe, pode chamar aqui:\n👉 https://wa.me/5521981845675"
-    };
+    if (textoRecebido === "9") {
+      try {
+        const mensagemMotivacional = await gerarMensagemOpenAI("Envie uma mensagem motivacional curta e inspiradora para adolescentes, em português.");
+        await enviarMensagem(numero, `💡 *Mensagem do Dia*\n\n${mensagemMotivacional}`);
+      } catch (erro) {
+        console.error("Erro ao gerar mensagem do dia:", erro);
+        await enviarMensagem(numero, "❌ Erro ao gerar a mensagem do dia.");
+      }
+      return res.sendStatus(200);
+    }
+
+    if (textoRecebido === "10") {
+      try {
+        const versiculo = await gerarMensagemOpenAI("Envie um versículo bíblico inspirador e curto, com referência, para jovens em português.");
+        await enviarMensagem(numero, `📖 *Versículo do Dia*\n\n${versiculo}`);
+      } catch (erro) {
+        console.error("Erro ao gerar versículo do dia:", erro);
+        await enviarMensagem(numero, "❌ Erro ao gerar o versículo do dia.");
+      }
+      return res.sendStatus(200);
+    }
 
     if (respostas[textoRecebido]) {
       await enviarMensagem(numero, respostas[textoRecebido]);
@@ -234,60 +261,29 @@ app.post("/webhook", async (req, res) => {
   }
 });
 
-    if (textoRecebido === "9") {
-          try {
-            const mensagemMotivacional = await gerarMensagemOpenAI("Envie uma mensagem motivacional curta e inspiradora para adolescentes, em português.");
-            await enviarMensagem(numero, `💡 *Mensagem do Dia*\n\n${mensagemMotivacional}`);
-          } catch (erro) {
-            console.error("Erro ao gerar mensagem do dia:", erro);
-            await enviarMensagem(numero, "❌ Erro ao gerar a mensagem do dia.");
-          }
-          return res.sendStatus(200);
-        }
-
-        if (textoRecebido === "10") {
-          try {
-            const versiculo = await gerarMensagemOpenAI("Envie um versículo bíblico inspirador e curto, com referência, para jovens em português.");
-            await enviarMensagem(numero, `📖 *Versículo do Dia*\n\n${versiculo}`);
-          } catch (erro) {
-            console.error("Erro ao gerar versículo do dia:", erro);
-            await enviarMensagem(numero, "❌ Erro ao gerar o versículo do dia.");
-          }
-          return res.sendStatus(200);
-        }
-
-        res.sendStatus(200);
-      } else {
-        res.sendStatus(404);
-      }
-    });
-
-    async function gerarMensagemOpenAI(prompt) {
-      const apiKey = process.env.OPENAI_API_KEY;
-      const resposta = await axios.post(
-        "https://api.openai.com/v1/chat/completions",
-        {
-          model: "gpt-3.5-turbo",
-          messages: [
-            {
-              role: "user",
-              content: prompt
-            }
-          ],
-          temperature: 0.8,
-          max_tokens: 150
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json"
-          }
-        }
-      );
-
-      return resposta.data.choices[0].message.content.trim();
+// Função para gerar mensagens com OpenAI
+async function gerarMensagemOpenAI(prompt) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  const resposta = await axios.post(
+    "https://api.openai.com/v1/chat/completions",
+    {
+      model: "gpt-3.5-turbo",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.8,
+      max_tokens: 150,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
     }
+  );
 
+  return resposta.data.choices[0].message.content.trim();
+}
+
+// Endpoint para disparo manual
 app.get("/disparo", async (req, res) => {
   const chave = req.query.chave;
   const chaveCorreta = process.env.CHAVE_DISPARO;
@@ -317,11 +313,13 @@ cron.schedule("00 09 * * *", () => {
   verificarEventosParaLembrete();
 });
 
+// Execução inicial
 reativarContatosPendentes();
 verificarEventosParaLembrete();
 
-// Porta obrigatória no Render
+// Inicialização do servidor
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
+
