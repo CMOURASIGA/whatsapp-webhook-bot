@@ -234,6 +234,60 @@ app.post("/webhook", async (req, res) => {
   }
 });
 
+    if (textoRecebido === "9") {
+          try {
+            const mensagemMotivacional = await gerarMensagemOpenAI("Envie uma mensagem motivacional curta e inspiradora para adolescentes, em português.");
+            await enviarMensagem(numero, `💡 *Mensagem do Dia*\n\n${mensagemMotivacional}`);
+          } catch (erro) {
+            console.error("Erro ao gerar mensagem do dia:", erro);
+            await enviarMensagem(numero, "❌ Erro ao gerar a mensagem do dia.");
+          }
+          return res.sendStatus(200);
+        }
+
+        if (textoRecebido === "10") {
+          try {
+            const versiculo = await gerarMensagemOpenAI("Envie um versículo bíblico inspirador e curto, com referência, para jovens em português.");
+            await enviarMensagem(numero, `📖 *Versículo do Dia*\n\n${versiculo}`);
+          } catch (erro) {
+            console.error("Erro ao gerar versículo do dia:", erro);
+            await enviarMensagem(numero, "❌ Erro ao gerar o versículo do dia.");
+          }
+          return res.sendStatus(200);
+        }
+
+        res.sendStatus(200);
+      } else {
+        res.sendStatus(404);
+      }
+    });
+
+    async function gerarMensagemOpenAI(prompt) {
+      const apiKey = process.env.OPENAI_API_KEY;
+      const resposta = await axios.post(
+        "https://api.openai.com/v1/chat/completions",
+        {
+          model: "gpt-3.5-turbo",
+          messages: [
+            {
+              role: "user",
+              content: prompt
+            }
+          ],
+          temperature: 0.8,
+          max_tokens: 150
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json"
+          }
+        }
+      );
+
+      return resposta.data.choices[0].message.content.trim();
+    }
+
 app.get("/disparo", async (req, res) => {
   const chave = req.query.chave;
   const chaveCorreta = process.env.CHAVE_DISPARO;
