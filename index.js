@@ -207,15 +207,22 @@ app.post("/webhook", async (req, res) => {
     }
 
     const respostas = {
-      "1": "📝 *Encontristas*\nhttps://docs.google.com/forms/d/e/1FAIpQLScrESiqWcBsnqMXGwiOOojIeU6ryhuWwZkL1kMr0QIeosgg5w/viewform?usp=preview",
-      "2": "📝 *Encontreiros*\nhttps://forms.gle/VzqYTs9yvnACiCew6",
-      "3": "📸 Instagram\nhttps://www.instagram.com/eacporciuncula/",
-      "4": "📬 E-mail\n✉️ eacporciunculadesantana@gmail.com",
-      "5": "📱 WhatsApp da Paróquia\nhttps://wa.me/552123422186",
-      "6": "📅 Eventos em breve estarão disponíveis.",
-      "7": "🎵 Spotify\nhttps://open.spotify.com/playlist/0JquaFjl5u9GrvSgML4S0R",
-      "8": "💬 Encontreiro\nhttps://wa.me/5521981845675"
-    };
+  "1": "📝 *Inscrição de Encontristas*\n\nSe você quer participar como *adolescente encontrista* no nosso próximo EAC, preencha este formulário com atenção:\n👉 https://docs.google.com/forms/d/e/1FAIpQLScrESiqWcBsnqMXGwiOOojIeU6ryhuWwZkL1kMr0QIeosgg5w/viewform?usp=preview",
+
+  "2": "📝 *Inscrição de Encontreiros*\n\nVocê deseja servir nessa missão linda como *encontreiro*? Preencha aqui para fazer parte da equipe:\n👉 https://forms.gle/VzqYTs9yvnACiCew6",
+
+  "3": "📸 *Nosso Instagram Oficial*\n\nFique por dentro de tudo que acontece no EAC Porciúncula. Curta, compartilhe e acompanhe nossos eventos:\n👉 https://www.instagram.com/eacporciuncula/",
+
+  "4": "📬 *Fale conosco por e-mail*\n\nDúvidas, sugestões ou parcerias? Escreva para a gente:\n✉️ eacporciunculadesantana@gmail.com",
+
+  "5": "📱 *WhatsApp da Paróquia*\n\nQuer falar direto com a secretaria da paróquia? Acesse:\n👉 https://wa.me/552123422186",
+
+  "6": "📅 *Eventos do EAC*\n\nEm breve vamos compartilhar aqui os próximos eventos incríveis que estão por vir. Fique ligado!",
+
+  "7": "🎵 *Nossa Playlist no Spotify*\n\nMúsicas que marcaram nossos encontros e nos inspiram todos os dias:\n👉 https://open.spotify.com/playlist/0JquaFjl5u9GrvSgML4S0R",
+
+  "8": "💬 *Falar com um Encontreiro*\n\nSe quiser tirar dúvidas com alguém da equipe, pode chamar aqui:\n👉 https://wa.me/5521981845675"
+};
 
     if (respostas[textoRecebido]) {
       await enviarMensagem(numero, respostas[textoRecebido]);
