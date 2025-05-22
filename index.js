@@ -320,8 +320,8 @@ cron.schedule("00 09 * * *", () => {
 });
 
 // Execução inicial
-reativarContatosPendentes();
-verificarEventosParaLembrete();
+//reativarContatosPendentes();
+//verificarEventosParaLembrete();
 
 // Inicialização do servidor
 const PORT = process.env.PORT || 3000;
