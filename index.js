@@ -107,10 +107,10 @@ async function verificarEventosParaLembrete() {
     const rows = response.data.values;
     if (!rows) return;
 
-    const hoje = new Date();
+    /*const hoje = new Date();
     const amanha = new Date(hoje);
-    amanha.setDate(hoje.getDate() + 1);
-    const mensagens = [];
+    seteDiasDepois.setDate(hoje.getDate() + 7);
+    const eventosDaSemana = [];
 
     for (const row of rows) {
       const valorData = row[6];
@@ -127,6 +127,31 @@ async function verificarEventosParaLembrete() {
       if (!isNaN(dataEvento.getTime()) && dataEvento.toDateString() === amanha.toDateString()) {
         const titulo = row[1] || "(Sem título)";
         mensagens.push(`📢 *Lembrete*: Amanhã teremos *${titulo}* no EAC. Esperamos você com alegria! 🙌`);
+      }
+    }*/
+
+    const hoje = new Date();
+    const seteDiasDepois = new Date(hoje);
+    seteDiasDepois.setDate(hoje.getDate() + 7);
+
+    const eventosDaSemana = [];
+
+    for (const row of rows) {
+      const valorData = row[6]; // Coluna G da planilha
+      if (!valorData) continue;
+
+      let dataEvento;
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(valorData)) {
+        const [dia, mes, ano] = valorData.split("/");
+        dataEvento = new Date(`${ano}-${mes}-${dia}`);
+      } else {
+        dataEvento = new Date(valorData);
+      }
+
+      if (!isNaN(dataEvento.getTime()) && dataEvento >= hoje && dataEvento <= seteDiasDepois) {
+        const titulo = row[1] || "(Sem título)";
+        const dataFormatada = `${dataEvento.getDate().toString().padStart(2, '0')}/${(dataEvento.getMonth() + 1).toString().padStart(2, '0')}`;
+        eventosDaSemana.push(`🔔 ${dataFormatada} - ${titulo}`);
       }
     }
 
@@ -154,7 +179,7 @@ async function verificarEventosParaLembrete() {
           await enviarMensagem(contato.numero, mensagem);
           updates[contato.idx] = ["Pendente"];
         }
-      }*/
+      }
       for (const contato of numeros) {
         const saudacao = "🌞 Bom dia! Aqui é o EAC Porciúncula trazendo uma mensagem especial para você:";
   
@@ -168,8 +193,22 @@ async function verificarEventosParaLembrete() {
 
         // Atualiza o status para Pendente apenas uma vez no final
         updates[contato.idx] = ["Pendente"];
-      }
+      }*/
+      if (eventosDaSemana.length > 0) {
+        const saudacao = "🌞 Bom dia! Aqui é o EAC Porciúncula trazendo um resumo dos próximos eventos:\n";
+        const cabecalho = `📅 *Agenda da Semana (${hoje.toLocaleDateString()} a ${seteDiasDepois.toLocaleDateString()})*\n\n`;
+        const corpo = eventosDaSemana.join("\n");
+        const rodape = "\n👉 Se tiver dúvida, fale com a gente!";
 
+        const mensagemFinal = `${saudacao}${cabecalho}${corpo}${rodape}`;
+
+        for (const contato of numeros) {
+          await enviarMensagem(contato.numero, mensagemFinal);
+          updates[contato.idx] = ["Pendente"];
+        }
+      } else {
+        console.log("Nenhum evento na próxima semana.");
+      }
 
       await sheets.spreadsheets.values.update({
         spreadsheetId,
