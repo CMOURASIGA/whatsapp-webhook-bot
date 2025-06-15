@@ -243,7 +243,7 @@ async function verificarEventosParaLembrete() {
 
         const mensagemFinal = `${saudacao}${cabecalho}${corpo}${rodape}`;
 
-        for (const evento of listaEventos) {
+        for (const evento of eventosDaSemana) {
           const nomeEvento = evento.nome;
           const dataEvento = evento.data;
 
