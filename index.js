@@ -52,8 +52,8 @@ async function enviarMensagem(numero, mensagem) {
 }
 
 
-// Função para envio de mensagem via Template (WhatsApp Cloud API)
-async function enviarTemplateMensagem(numero, textoEventosDaSemana) {
+// Função para envio de template de lembrete de evento
+async function enviarTemplateLembreteEvento(numero, eventoNome, dataEvento) {
   try {
     await axios.post(
       `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
@@ -62,16 +62,17 @@ async function enviarTemplateMensagem(numero, textoEventosDaSemana) {
         to: numero,
         type: "template",
         template: {
-          name: "lembrete_evento_eac",
+          name: "lembrete_evento_eac_v3",
           language: { code: "pt_BR" },
           components: [
             {
               type: "body",
               parameters: [
-                {
-                  type: "text",
-                  text: textoEventosDaSemana
-                }
+                { type: "text", text: eventoNome },                             // Nome do evento (dinâmico)
+                { type: "text", text: "15/06/2025" },                           // Prazo para resposta (fixo)
+                { type: "text", text: dataEvento },                             // Data do evento (dinâmico)
+                { type: "text", text: "09:00 às 18:00" },                       // Horário fixo
+                { type: "text", text: "Paróquia Porciúncula de Sant'Ana" }      // Local fixo
               ]
             }
           ]
@@ -80,15 +81,16 @@ async function enviarTemplateMensagem(numero, textoEventosDaSemana) {
       {
         headers: {
           Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+          "Content-Type": "application/json"
+        }
       }
     );
-    console.log("✅ Template enviado com sucesso para:", numero);
+    console.log(`✅ Template enviado com sucesso para: ${numero}`);
   } catch (error) {
-    console.error("❌ Erro ao enviar template:", JSON.stringify(error.response?.data || error, null, 2));
+    console.error("❌ Erro ao enviar template de lembrete:", JSON.stringify(error.response?.data || error, null, 2));
   }
 }
+
 
 // Atualiza contatos pendentes para ativo
 async function reativarContatosPendentes() {
