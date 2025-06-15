@@ -243,12 +243,15 @@ async function verificarEventosParaLembrete() {
 
         const mensagemFinal = `${saudacao}${cabecalho}${corpo}${rodape}`;
 
+      for (const contato of numeros) {
         for (const evento of eventosDaSemana) {
           const nomeEvento = evento.nome;
           const dataEvento = evento.data;
-
+      
           await enviarTemplateLembreteEvento(contato.numero, nomeEvento, dataEvento);
         }
+        updates[contato.idx] = ["Pendente"];
+      }
 
       } else {
         console.log("Nenhum evento na próxima semana.");
