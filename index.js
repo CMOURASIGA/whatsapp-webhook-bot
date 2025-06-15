@@ -55,6 +55,16 @@ async function enviarMensagem(numero, mensagem) {
 // Função para envio de template de lembrete de evento
 async function enviarTemplateLembreteEvento(numero, eventoNome, dataEvento) {
   try {
+    // Validação dos parâmetros obrigatórios
+    if (!numero || !eventoNome || !dataEvento) {
+      console.error(`❌ Parâmetros inválidos. Dados recebidos: numero=${numero}, eventoNome=${eventoNome}, dataEvento=${dataEvento}`);
+      return;
+    }
+
+    // Log antes do envio
+    console.log(`📨 Preparando envio para: ${numero}`);
+    console.log(`📅 Evento: ${eventoNome} | Data: ${dataEvento}`);
+
     await axios.post(
       `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
       {
@@ -68,9 +78,9 @@ async function enviarTemplateLembreteEvento(numero, eventoNome, dataEvento) {
             {
               type: "body",
               parameters: [
-                { type: "text", text: eventoNome },                             // Nome do evento (dinâmico)
+                { type: "text", text: eventoNome },                             // Nome do evento
                 { type: "text", text: "15/06/2025" },                           // Prazo para resposta (fixo)
-                { type: "text", text: dataEvento },                             // Data do evento (dinâmico)
+                { type: "text", text: dataEvento },                             // Data do evento
                 { type: "text", text: "09:00 às 18:00" },                       // Horário fixo
                 { type: "text", text: "Paróquia Porciúncula de Sant'Ana" }      // Local fixo
               ]
@@ -85,9 +95,10 @@ async function enviarTemplateLembreteEvento(numero, eventoNome, dataEvento) {
         }
       }
     );
+
     console.log(`✅ Template enviado com sucesso para: ${numero}`);
   } catch (error) {
-    console.error("❌ Erro ao enviar template de lembrete:", JSON.stringify(error.response?.data || error, null, 2));
+    console.error(`❌ Erro ao enviar template para o número ${numero}:`, JSON.stringify(error.response?.data || error, null, 2));
   }
 }
 
