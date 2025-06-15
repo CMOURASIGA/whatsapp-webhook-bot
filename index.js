@@ -51,6 +51,45 @@ async function enviarMensagem(numero, mensagem) {
   }
 }
 
+
+// Função para envio de mensagem via Template (WhatsApp Cloud API)
+async function enviarTemplateMensagem(numero, textoEventosDaSemana) {
+  try {
+    await axios.post(
+      `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
+      {
+        messaging_product: "whatsapp",
+        to: numero,
+        type: "template",
+        template: {
+          name: "lembrete_evento_eac",
+          language: { code: "pt_BR" },
+          components: [
+            {
+              type: "body",
+              parameters: [
+                {
+                  type: "text",
+                  text: textoEventosDaSemana
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    console.log("✅ Template enviado com sucesso para:", numero);
+  } catch (error) {
+    console.error("❌ Erro ao enviar template:", JSON.stringify(error.response?.data || error, null, 2));
+  }
+}
+
 // Atualiza contatos pendentes para ativo
 async function reativarContatosPendentes() {
   try {
@@ -203,7 +242,7 @@ async function verificarEventosParaLembrete() {
         const mensagemFinal = `${saudacao}${cabecalho}${corpo}${rodape}`;
 
         for (const contato of numeros) {
-          await enviarMensagem(contato.numero, mensagemFinal);
+          await enviarTemplateMensagem(contato.numero, mensagemFinal);
           updates[contato.idx] = ["Pendente"];
         }
       } else {
