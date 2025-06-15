@@ -147,14 +147,29 @@ async function verificarEventosParaLembrete() {
       console.log("📨 Contatos ativos:", numeros.length);
       const updates = contatos.map(([numero, status]) => [status]);
 
-      for (const contato of numeros) {
+      /*for (const contato of numeros) {
         const saudacao = "🌞 Bom dia! Aqui é o EAC Porciúncula trazendo uma mensagem especial para você:";
         for (const mensagem of mensagens) {
           await enviarMensagem(contato.numero, saudacao);
           await enviarMensagem(contato.numero, mensagem);
           updates[contato.idx] = ["Pendente"];
         }
+      }*/
+      for (const contato of numeros) {
+        const saudacao = "🌞 Bom dia! Aqui é o EAC Porciúncula trazendo uma mensagem especial para você:";
+  
+        // Envia apenas UMA vez a saudação
+        await enviarMensagem(contato.numero, saudacao);
+
+        // Envia TODAS as mensagens de evento (uma vez cada)
+        for (const mensagem of mensagens) {
+        await enviarMensagem(contato.numero, mensagem);
+        }
+
+        // Atualiza o status para Pendente apenas uma vez no final
+        updates[contato.idx] = ["Pendente"];
       }
+
 
       await sheets.spreadsheets.values.update({
         spreadsheetId,
