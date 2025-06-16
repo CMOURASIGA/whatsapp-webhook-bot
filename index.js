@@ -899,6 +899,91 @@ async function dispararBoasVindasParaAtivos() {
 
 // Atualizando o endpoint /disparo para incluir o tipo boasvindas
 
+app.get("/dispararConfirmacaoParticipacao", async (req, res) => {
+  const chave = req.query.chave;
+  const chaveCorreta = process.env.CHAVE_DISPARO;
+
+  if (chave !== chaveCorreta) {
+    return res.status(401).send("❌ Acesso não autorizado.");
+  }
+
+  try {
+    const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+    const client = await auth.getClient();
+    const sheets = google.sheets({ version: "v4", auth: client });
+
+    const spreadsheetId = "1I988yRvGYfjhoqmFvdQbjO9qWzTB4T6yv0dDBxQ-oEg";
+    const aba = "Inscricoes_Prioritarias";
+    const range = `${aba}!A2:W73`;  // Linhas 2 a 73, até a coluna W
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range,
+    });
+
+    const rows = response.data.values || [];
+
+    console.log(`🔎 Total de registros carregados da aba ${aba}: ${rows.length}`);
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const numeroWhatsApp = row[6];  // Coluna G = índice 6
+      const statusEnvio = row[22];    // Coluna W = índice 22
+
+      if (!numeroWhatsApp || statusEnvio === "Enviado") {
+        console.log(`⏭️ Pulando linha ${i + 2}: número vazio ou já enviado.`);
+        continue;
+      }
+
+      console.log(`📨 Enviando template de confirmação para: ${numeroWhatsApp}`);
+
+      try {
+        await axios.post(
+          `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
+          {
+            messaging_product: "whatsapp",
+            to: numeroWhatsApp,
+            type: "template",
+            template: {
+              name: "eac_confirmar_participacao_v1",
+              language: { code: "pt_BR" },
+            },
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        // Atualizar status na coluna W (linha correta)
+        const updateRange = `${aba}!W${i + 2}`;
+        await sheets.spreadsheets.values.update({
+          spreadsheetId,
+          range: updateRange,
+          valueInputOption: "RAW",
+          resource: { values: [["Enviado"]] },
+        });
+
+        console.log(`✅ Mensagem enviada e status marcado na linha ${i + 2}`);
+
+      } catch (erroEnvio) {
+        console.error(`❌ Erro ao enviar para ${numeroWhatsApp}:`, JSON.stringify(erroEnvio.response?.data || erroEnvio, null, 2));
+      }
+    }
+
+    res.status(200).send("✅ Disparo de confirmação de participação concluído.");
+  } catch (error) {
+    console.error("❌ Erro geral ao processar o disparo:", error);
+    res.status(500).send("❌ Erro interno no envio.");
+  }
+});
+
 
 
 // Inicialização do servidor
@@ -906,3 +991,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
+
