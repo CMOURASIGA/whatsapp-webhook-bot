@@ -651,16 +651,17 @@ async function dispararEventosSemTemplate() {
     const client = await auth.getClient();
     const sheets = google.sheets({ version: "v4", auth: client });
 
-    const spreadsheetId = "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8";
-    const range = "comunicados!A2:G";
+    // Consulta de eventos apenas na planilha dos Encontristas
+    const spreadsheetIdEventos = "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8";
+    const rangeEventos = "comunicados!A2:G";
     const response = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range,
+      spreadsheetId: spreadsheetIdEventos,
+      range: rangeEventos,
     });
 
     const rows = response.data.values;
     if (!rows) {
-      console.log("Nenhum evento encontrado na planilha.");
+      console.log("Nenhum evento encontrado na planilha de comunicados.");
       return;
     }
 
@@ -675,7 +676,7 @@ async function dispararEventosSemTemplate() {
         if (!dataTexto) return null;
 
         let dataEvento;
-        if (/^\d{2}\/\d{2}\/\d{4}$/.test(dataTexto)) {
+        if (/^\\d{2}\\/\\d{2}\\/\\d{4}$/.test(dataTexto)) {
           const [dia, mes, ano] = dataTexto.split("/");
           dataEvento = new Date(`${ano}-${mes}-${dia}`);
         } else {
@@ -694,27 +695,31 @@ async function dispararEventosSemTemplate() {
       return;
     }
 
-    const mensagemFinal = `📢 *Próximos Eventos do EAC:*
+    const mensagemFinal = `📢 *Próximos Eventos do EAC:*\n\n${eventosDaSemana.join("\\n")}\n\n🟠 Se tiver dúvidas, fale com a gente!`;
 
-${eventosDaSemana.join("\n")}
+    // Agora busca os contatos nas DUAS planilhas
+    const planilhas = [
+      "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8", // Encontristas
+      "1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4"  // Encontreiros
+    ];
 
-🟠 Se tiver dúvidas, fale com a gente!`;
+    for (const spreadsheetId of planilhas) {
+      const rangeFila = "fila_envio!F2:G";
+      const filaResponse = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: rangeFila,
+      });
 
-    const rangeFila = "fila_envio!F2:G";
-    const filaResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: rangeFila,
-    });
+      const contatos = filaResponse.data.values || [];
+      const numerosAtivos = contatos
+        .map(([numero, status]) => ({ numero, status }))
+        .filter(c => c.status === "Ativo");
 
-    const contatos = filaResponse.data.values || [];
-    const numerosAtivos = contatos
-      .map(([numero, status]) => ({ numero, status }))
-      .filter(c => c.status === "Ativo");
+      console.log(`📨 Encontrados ${numerosAtivos.length} contatos ativos na planilha ${spreadsheetId}`);
 
-    console.log(`📨 Enviando eventos para ${numerosAtivos.length} contatos.`);
-
-    for (const contato of numerosAtivos) {
-      await enviarMensagem(contato.numero, mensagemFinal);
+      for (const contato of numerosAtivos) {
+        await enviarMensagem(contato.numero, mensagemFinal);
+      }
     }
 
     console.log("✅ Disparo de eventos sem template concluído.");
@@ -722,11 +727,6 @@ ${eventosDaSemana.join("\n")}
     console.error("❌ Erro ao disparar eventos sem template:", error);
   }
 }
-
-
-
-
-
 
 
 app.get("/disparo", async (req, res) => {
