@@ -209,7 +209,7 @@ async function verificarEventosParaLembrete() {
       if (!valorData) continue;
 
       let dataEvento;
-      if (/^\d{2}\/\d{2}\/\d{4}$/.test(valorData)) {
+      if (/^\\d{2}\\/\\d{2}\\/\\d{4}$/.test(valorData)) {
         const [dia, mes, ano] = valorData.split("/");
         dataEvento = new Date(`${ano}-${mes}-${dia}`);
       } else {
@@ -457,7 +457,7 @@ async function dispararEventosSemTemplate() {
         if (!dataTexto) return null;
 
         let dataEvento;
-        if (/^\d{2}\/\d{2}\/\d{4}$/.test(dataTexto)) {
+        if (/^\\d{2}\\/\\d{2}\\/\\d{4}$/.test(dataTexto)) {
           const [dia, mes, ano] = dataTexto.split("/");
           dataEvento = new Date(`${ano}-${mes}-${dia}`);
         } else {
