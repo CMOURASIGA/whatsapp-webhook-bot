@@ -21,7 +21,7 @@ function montarMenuPrincipal() {
     "5 - 📱 WhatsApp da Paróquia\n" +
     "6 - 📅 Eventos do EAC\n" +
     "7 - 🎵 Playlist no Spotify\n" +
-    "8 - 💬 Falar com um Encontreiro\n" +
+    //"8 - 💬 Falar com um Encontreiro\n" +
     "9 - 💡 Mensagem do Dia\n" +
     "10 - 📖 Versículo do Dia\n\n" +
     "Digite o número correspondente à opção desejada. 👇"
