@@ -420,8 +420,92 @@ async function gerarMensagemOpenAI(prompt) {
 }
 
 // Endpoint para disparo manual
+
+// Função para disparar eventos da semana SEM usar template (texto normal)
+async function dispararEventosSemTemplate() {
+  try {
+    const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+    const client = await auth.getClient();
+    const sheets = google.sheets({ version: "v4", auth: client });
+
+    const spreadsheetId = "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8";
+    const range = "comunicados!A2:G";
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range,
+    });
+
+    const rows = response.data.values;
+    if (!rows) {
+      console.log("Nenhum evento encontrado na planilha.");
+      return;
+    }
+
+    const hoje = new Date();
+    const seteDiasDepois = new Date();
+    seteDiasDepois.setDate(hoje.getDate() + 7);
+
+    const eventosDaSemana = rows
+      .map(row => {
+        const titulo = row[1] || "(Sem título)";
+        const dataTexto = row[6];
+        if (!dataTexto) return null;
+
+        let dataEvento;
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(dataTexto)) {
+          const [dia, mes, ano] = dataTexto.split("/");
+          dataEvento = new Date(`${ano}-${mes}-${dia}`);
+        } else {
+          dataEvento = new Date(dataTexto);
+        }
+
+        if (!isNaN(dataEvento.getTime()) && dataEvento >= hoje && dataEvento <= seteDiasDepois) {
+          return `📅 *${titulo}* - ${dataTexto}`;
+        }
+        return null;
+      })
+      .filter(e => e);
+
+    if (eventosDaSemana.length === 0) {
+      console.log("Nenhum evento nos próximos 7 dias.");
+      return;
+    }
+
+    const mensagemFinal = "📢 *Próximos Eventos do EAC:*
+
+" + eventosDaSemana.join("\n") + "\n\n👉 Se tiver dúvidas, fale com a gente!";
+
+    const rangeFila = "fila_envio!F2:G";
+    const filaResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: rangeFila,
+    });
+
+    const contatos = filaResponse.data.values || [];
+    const numerosAtivos = contatos
+      .map(([numero, status]) => ({ numero, status }))
+      .filter(c => c.status === "Ativo");
+
+    console.log(`📨 Enviando eventos para ${numerosAtivos.length} contatos.`);
+
+    for (const contato of numerosAtivos) {
+      await enviarMensagem(contato.numero, mensagemFinal);
+    }
+
+    console.log("✅ Disparo de eventos sem template concluído.");
+  } catch (error) {
+    console.error("❌ Erro ao disparar eventos sem template:", error);
+  }
+}
+
+// Novo endpoint /disparo para gerenciar tipos de disparo
 app.get("/disparo", async (req, res) => {
   const chave = req.query.chave;
+  const tipo = req.query.tipo;
   const chaveCorreta = process.env.CHAVE_DISPARO;
 
   if (chave !== chaveCorreta) {
@@ -429,14 +513,26 @@ app.get("/disparo", async (req, res) => {
   }
 
   try {
-    console.log("📢 Disparo manual solicitado...");
-    await verificarEventosParaLembrete();
-    res.status(200).send("✅ Disparo manual concluído com sucesso!");
+    if (tipo === "boasvindas") {
+      console.log("🚀 Disparando boas-vindas para todos os contatos ativos...");
+      await dispararBoasVindasParaAtivos();
+      return res.status(200).send("✅ Boas-vindas enviadas com sucesso.");
+    }
+
+    if (tipo === "eventos") {
+      console.log("🚀 Disparando eventos da semana (sem template)...");
+      await dispararEventosSemTemplate();
+      return res.status(200).send("✅ Eventos da semana enviados com sucesso.");
+    }
+
+    console.log("📢 Tipo de disparo inválido ou não informado.");
+    res.status(400).send("❌ Tipo de disparo inválido. Use tipo=boasvindas ou tipo=eventos.");
   } catch (erro) {
-    console.error("Erro no disparo manual:", erro);
+    console.error("❌ Erro no disparo manual:", erro);
     res.status(500).send("❌ Erro ao processar o disparo.");
   }
 });
+
 
 // CRON Jobs
 cron.schedule("50 08 * * *", () => {
@@ -452,6 +548,309 @@ cron.schedule("00 09 * * *", () => {
 // Execução inicial
 //reativarContatosPendentes();
 //verificarEventosParaLembrete();
+
+
+// Função para envio do template de boas-vindas (primeiro contato)
+async function enviarTemplateBoasVindas(numero) {
+  try {
+    console.log(`📨 Enviando template de boas-vindas para: ${numero}`);
+
+    await axios.post(
+      `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
+      {
+        messaging_product: "whatsapp",
+        to: numero,
+        type: "template",
+        template: {
+          name: "eac_boasvindas_v1",
+          language: { code: "pt_BR" }
+        }
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    console.log(`✅ Template de boas-vindas enviado com sucesso para: ${numero}`);
+  } catch (error) {
+    console.error(`❌ Erro ao enviar boas-vindas para ${numero}:`, JSON.stringify(error.response?.data || error, null, 2));
+  }
+}
+
+// Função para disparar boas-vindas para todos os contatos ativos nas duas planilhas
+async function dispararBoasVindasParaAtivos() {
+  try {
+    const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+    const client = await auth.getClient();
+    const sheets = google.sheets({ version: "v4", auth: client });
+
+    const planilhas = [
+      "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8",
+      "1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4"
+    ];
+
+    for (const spreadsheetId of planilhas) {
+      const rangeFila = "fila_envio!F2:G";
+      const response = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: rangeFila,
+      });
+
+      const contatos = response.data.values || [];
+
+      const numerosAtivos = contatos
+        .map(([numero, status]) => ({ numero, status }))
+        .filter(c => c.status === "Ativo");
+
+      console.log(`📨 Encontrados ${numerosAtivos.length} contatos ativos na planilha ${spreadsheetId}`);
+
+      for (const contato of numerosAtivos) {
+        await enviarTemplateBoasVindas(contato.numero);
+      }
+    }
+
+    console.log("✅ Disparo de boas-vindas concluído.");
+  } catch (error) {
+    console.error("❌ Erro ao disparar boas-vindas para contatos ativos:", error);
+  }
+}
+
+// Atualizando o endpoint /disparo para incluir o tipo boasvindas
+
+// Função para disparar eventos da semana SEM usar template (texto normal)
+async function dispararEventosSemTemplate() {
+  try {
+    const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+    const client = await auth.getClient();
+    const sheets = google.sheets({ version: "v4", auth: client });
+
+    const spreadsheetId = "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8";
+    const range = "comunicados!A2:G";
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range,
+    });
+
+    const rows = response.data.values;
+    if (!rows) {
+      console.log("Nenhum evento encontrado na planilha.");
+      return;
+    }
+
+    const hoje = new Date();
+    const seteDiasDepois = new Date();
+    seteDiasDepois.setDate(hoje.getDate() + 7);
+
+    const eventosDaSemana = rows
+      .map(row => {
+        const titulo = row[1] || "(Sem título)";
+        const dataTexto = row[6];
+        if (!dataTexto) return null;
+
+        let dataEvento;
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(dataTexto)) {
+          const [dia, mes, ano] = dataTexto.split("/");
+          dataEvento = new Date(`${ano}-${mes}-${dia}`);
+        } else {
+          dataEvento = new Date(dataTexto);
+        }
+
+        if (!isNaN(dataEvento.getTime()) && dataEvento >= hoje && dataEvento <= seteDiasDepois) {
+          return `📅 *${titulo}* - ${dataTexto}`;
+        }
+        return null;
+      })
+      .filter(e => e);
+
+    if (eventosDaSemana.length === 0) {
+      console.log("Nenhum evento nos próximos 7 dias.");
+      return;
+    }
+
+    const mensagemFinal = "📢 *Próximos Eventos do EAC:*
+
+" + eventosDaSemana.join("\n") + "\n\n👉 Se tiver dúvidas, fale com a gente!";
+
+    const rangeFila = "fila_envio!F2:G";
+    const filaResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: rangeFila,
+    });
+
+    const contatos = filaResponse.data.values || [];
+    const numerosAtivos = contatos
+      .map(([numero, status]) => ({ numero, status }))
+      .filter(c => c.status === "Ativo");
+
+    console.log(`📨 Enviando eventos para ${numerosAtivos.length} contatos.`);
+
+    for (const contato of numerosAtivos) {
+      await enviarMensagem(contato.numero, mensagemFinal);
+    }
+
+    console.log("✅ Disparo de eventos sem template concluído.");
+  } catch (error) {
+    console.error("❌ Erro ao disparar eventos sem template:", error);
+  }
+}
+
+// Novo endpoint /disparo para gerenciar tipos de disparo
+app.get("/disparo", async (req, res) => {
+  const chave = req.query.chave;
+  const tipo = req.query.tipo;
+  const chaveCorreta = process.env.CHAVE_DISPARO;
+
+  if (chave !== chaveCorreta) {
+    return res.status(401).send("❌ Acesso não autorizado.");
+  }
+
+  try {
+    if (tipo === "boasvindas") {
+      console.log("🚀 Disparando boas-vindas para todos os contatos ativos...");
+      await dispararBoasVindasParaAtivos();
+      return res.status(200).send("✅ Boas-vindas enviadas com sucesso.");
+    }
+
+    if (tipo === "eventos") {
+      console.log("🚀 Disparando eventos da semana (sem template)...");
+      await dispararEventosSemTemplate();
+      return res.status(200).send("✅ Eventos da semana enviados com sucesso.");
+    }
+
+    console.log("📢 Tipo de disparo inválido ou não informado.");
+    res.status(400).send("❌ Tipo de disparo inválido. Use tipo=boasvindas ou tipo=eventos.");
+  } catch (erro) {
+    console.error("❌ Erro no disparo manual:", erro);
+    res.status(500).send("❌ Erro ao processar o disparo.");
+  }
+});
+
+
+// CRON Jobs
+cron.schedule("50 08 * * *", () => {
+  console.log("🔁 Reativando contatos com status pendente...");
+  reativarContatosPendentes();
+});
+
+cron.schedule("00 09 * * *", () => {
+  console.log("⏰ Executando verificação de eventos para lembrete às 09:00...");
+  verificarEventosParaLembrete();
+});
+
+// Execução inicial
+//reativarContatosPendentes();
+//verificarEventosParaLembrete();
+
+
+// Função para envio do template de boas-vindas (primeiro contato)
+async function enviarTemplateBoasVindas(numero) {
+  try {
+    console.log(`📨 Enviando template de boas-vindas para: ${numero}`);
+
+    await axios.post(
+      `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
+      {
+        messaging_product: "whatsapp",
+        to: numero,
+        type: "template",
+        template: {
+          name: "eac_boasvindas_v1",
+          language: { code: "pt_BR" }
+        }
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    console.log(`✅ Template de boas-vindas enviado com sucesso para: ${numero}`);
+  } catch (error) {
+    console.error(`❌ Erro ao enviar boas-vindas para ${numero}:`, JSON.stringify(error.response?.data || error, null, 2));
+  }
+}
+
+// Função para disparar boas-vindas para todos os contatos ativos nas duas planilhas
+async function dispararBoasVindasParaAtivos() {
+  try {
+    const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+    const client = await auth.getClient();
+    const sheets = google.sheets({ version: "v4", auth: client });
+
+    const planilhas = [
+      "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8",
+      "1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4"
+    ];
+
+    for (const spreadsheetId of planilhas) {
+      const rangeFila = "fila_envio!F2:G";
+      const response = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: rangeFila,
+      });
+
+      const contatos = response.data.values || [];
+
+      const numerosAtivos = contatos
+        .map(([numero, status]) => ({ numero, status }))
+        .filter(c => c.status === "Ativo");
+
+      console.log(`📨 Encontrados ${numerosAtivos.length} contatos ativos na planilha ${spreadsheetId}`);
+
+      for (const contato of numerosAtivos) {
+        await enviarTemplateBoasVindas(contato.numero);
+      }
+    }
+
+    console.log("✅ Disparo de boas-vindas concluído.");
+  } catch (error) {
+    console.error("❌ Erro ao disparar boas-vindas para contatos ativos:", error);
+  }
+}
+
+// Atualizando o endpoint /disparo para incluir o tipo boasvindas
+app.get("/disparo", async (req, res) => {
+  const chave = req.query.chave;
+  const tipo = req.query.tipo;
+  const chaveCorreta = process.env.CHAVE_DISPARO;
+
+  if (chave !== chaveCorreta) {
+    return res.status(401).send("❌ Acesso não autorizado.");
+  }
+
+  try {
+    if (tipo === "boasvindas") {
+      console.log("🚀 Disparando boas-vindas para todos os contatos ativos...");
+      await dispararBoasVindasParaAtivos();
+      return res.status(200).send("✅ Boas-vindas enviadas para todos os contatos ativos.");
+    }
+
+    console.log("📢 Disparo manual de eventos solicitado...");
+    await verificarEventosParaLembrete();
+    res.status(200).send("✅ Disparo de lembretes de eventos concluído com sucesso!");
+  } catch (erro) {
+    console.error("❌ Erro no disparo manual:", erro);
+    res.status(500).send("❌ Erro ao processar o disparo.");
+  }
+});
+
 
 // Inicialização do servidor
 const PORT = process.env.PORT || 3000;
