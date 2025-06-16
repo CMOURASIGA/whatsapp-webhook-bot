@@ -269,8 +269,10 @@ async function verificarEventosParaLembrete() {
       if (eventosDaSemana.length > 0) {
         const saudacao = "🌞 Bom dia! Aqui é o EAC Porciúncula trazendo um resumo dos próximos eventos:\n";
         const cabecalho = `📅 *Agenda da Semana (${hoje.toLocaleDateString()} a ${seteDiasDepois.toLocaleDateString()})*\n\n`;
+        const corpo = eventosDaSemana.join("\n");
         const rodape = "\n👉 Se tiver dúvida, fale com a gente!";
 
+        const mensagemFinal = `${saudacao}${cabecalho}${corpo}${rodape}`;
 
       for (const contato of numeros) {
         for (const evento of eventosDaSemana) {
@@ -473,7 +475,11 @@ async function dispararEventosSemTemplate() {
       return;
     }
 
+    const mensagemFinal = `📢 *Próximos Eventos do EAC:*
 
+${eventosDaSemana.join("\n")}
+
+🟠 Se tiver dúvidas, fale com a gente!`;
 
     const rangeFila = "fila_envio!F2:G";
     const filaResponse = await sheets.spreadsheets.values.get({
@@ -498,7 +504,8 @@ async function dispararEventosSemTemplate() {
   }
 }
 
-// Novo endpoint /disparo para gerenciar tipos de disparo
+
+
 app.get("/disparo", async (req, res) => {
   const chave = req.query.chave;
   const tipo = req.query.tipo;
@@ -674,7 +681,11 @@ async function dispararEventosSemTemplate() {
       return;
     }
 
+    const mensagemFinal = `📢 *Próximos Eventos do EAC:*
 
+${eventosDaSemana.join("\n")}
+
+🟠 Se tiver dúvidas, fale com a gente!`;
 
     const rangeFila = "fila_envio!F2:G";
     const filaResponse = await sheets.spreadsheets.values.get({
@@ -699,7 +710,8 @@ async function dispararEventosSemTemplate() {
   }
 }
 
-// Novo endpoint /disparo para gerenciar tipos de disparo
+
+
 app.get("/disparo", async (req, res) => {
   const chave = req.query.chave;
   const tipo = req.query.tipo;
@@ -851,10 +863,3 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
-
-    const mensagemFinal = `📢 *Próximos Eventos do EAC:*
-
-${eventosDaSemana.join("\n")}
-
-🟠 Se tiver dúvidas, fale com a gente!`;
-    
