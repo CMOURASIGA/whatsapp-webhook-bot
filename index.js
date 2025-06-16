@@ -820,6 +820,53 @@ async function dispararBoasVindasParaAtivos() {
     const sheets = google.sheets({ version: "v4", auth: client });
 
     const planilhas = [
+      "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8", // Encontristas
+      "1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4"  // Encontreiros
+    ];
+
+    const numerosUnicos = new Set();
+
+    for (const spreadsheetId of planilhas) {
+      const rangeFila = "fila_envio!F2:G";
+      const response = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: rangeFila,
+      });
+
+      const contatos = response.data.values || [];
+
+      contatos.forEach(([numero, status]) => {
+        if (status === "Ativo") {
+          numerosUnicos.add(numero);
+        }
+      });
+    }
+
+    console.log(`📨 Total de contatos únicos para disparo: ${numerosUnicos.size}`);
+
+    for (const numero of numerosUnicos) {
+      console.log(`📨 Enviando template de boas-vindas para: ${numero}`);
+      await enviarTemplateBoasVindas(numero);
+    }
+
+    console.log("✅ Disparo de boas-vindas concluído.");
+
+  } catch (error) {
+    console.error("❌ Erro ao disparar boas-vindas para contatos ativos:", error);
+  }
+}
+
+/*async function dispararBoasVindasParaAtivos() {
+  try {
+    const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+    const client = await auth.getClient();
+    const sheets = google.sheets({ version: "v4", auth: client });
+
+    const planilhas = [
       "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8",
       "1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4"
     ];
@@ -848,7 +895,7 @@ async function dispararBoasVindasParaAtivos() {
   } catch (error) {
     console.error("❌ Erro ao disparar boas-vindas para contatos ativos:", error);
   }
-}
+}*/
 
 // Atualizando o endpoint /disparo para incluir o tipo boasvindas
 
