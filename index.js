@@ -422,6 +422,7 @@ async function gerarMensagemOpenAI(prompt) {
 // Endpoint para disparo manual
 
 // Função para disparar eventos da semana SEM usar template (texto normal)
+
 async function dispararEventosSemTemplate() {
   try {
     const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
@@ -432,11 +433,11 @@ async function dispararEventosSemTemplate() {
     const client = await auth.getClient();
     const sheets = google.sheets({ version: "v4", auth: client });
 
-    const spreadsheetId = "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8";
-    const range = "comunicados!A2:G";
+    const spreadsheetIdEventos = "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8";
+    const rangeEventos = "comunicados!A2:G";
     const response = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range,
+      spreadsheetId: spreadsheetIdEventos,
+      range: rangeEventos,
     });
 
     const rows = response.data.values;
@@ -481,21 +482,28 @@ ${eventosDaSemana.join("\n")}
 
 🟠 Se tiver dúvidas, fale com a gente!`;
 
-    const rangeFila = "fila_envio!F2:G";
-    const filaResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: rangeFila,
-    });
+    const planilhas = [
+      "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8",
+      "1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4"
+    ];
 
-    const contatos = filaResponse.data.values || [];
-    const numerosAtivos = contatos
-      .map(([numero, status]) => ({ numero, status }))
-      .filter(c => c.status === "Ativo");
+    for (const spreadsheetId of planilhas) {
+      const rangeFila = "fila_envio!F2:G";
+      const filaResponse = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: rangeFila,
+      });
 
-    console.log(`📨 Enviando eventos para ${numerosAtivos.length} contatos.`);
+      const contatos = filaResponse.data.values || [];
+      const numerosAtivos = contatos
+        .map(([numero, status]) => ({ numero, status }))
+        .filter(c => c.status === "Ativo");
 
-    for (const contato of numerosAtivos) {
-      await enviarMensagem(contato.numero, mensagemFinal);
+      console.log(`📨 Encontrados ${numerosAtivos.length} contatos ativos na planilha ${spreadsheetId}`);
+
+      for (const contato of numerosAtivos) {
+        await enviarMensagem(contato.numero, mensagemFinal);
+      }
     }
 
     console.log("✅ Disparo de eventos sem template concluído.");
@@ -503,6 +511,11 @@ ${eventosDaSemana.join("\n")}
     console.error("❌ Erro ao disparar eventos sem template:", error);
   }
 }
+
+
+
+
+
 
 
 
@@ -712,6 +725,10 @@ ${eventosDaSemana.join("\n")}
 
 
 
+
+
+
+
 app.get("/disparo", async (req, res) => {
   const chave = req.query.chave;
   const tipo = req.query.tipo;
@@ -832,30 +849,7 @@ async function dispararBoasVindasParaAtivos() {
 }
 
 // Atualizando o endpoint /disparo para incluir o tipo boasvindas
-app.get("/disparo", async (req, res) => {
-  const chave = req.query.chave;
-  const tipo = req.query.tipo;
-  const chaveCorreta = process.env.CHAVE_DISPARO;
 
-  if (chave !== chaveCorreta) {
-    return res.status(401).send("❌ Acesso não autorizado.");
-  }
-
-  try {
-    if (tipo === "boasvindas") {
-      console.log("🚀 Disparando boas-vindas para todos os contatos ativos...");
-      await dispararBoasVindasParaAtivos();
-      return res.status(200).send("✅ Boas-vindas enviadas para todos os contatos ativos.");
-    }
-
-    console.log("📢 Disparo manual de eventos solicitado...");
-    await verificarEventosParaLembrete();
-    res.status(200).send("✅ Disparo de lembretes de eventos concluído com sucesso!");
-  } catch (erro) {
-    console.error("❌ Erro no disparo manual:", erro);
-    res.status(500).send("❌ Erro ao processar o disparo.");
-  }
-});
 
 
 // Inicialização do servidor
