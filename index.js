@@ -82,7 +82,7 @@ async function enviarTemplateLembreteEvento(numero, eventoNome, dataEvento) {
                 { type: "text", text: "15/06/2025" },                           // Prazo para resposta (fixo)
                 { type: "text", text: dataEvento },                             // Data do evento
                 { type: "text", text: "09:00 às 18:00" },                       // Horário fixo
-                { type: "text", text: "Paróquia Porciúncula de Sant'Ana" }      // Local fixo
+                //{ type: "text", text: "Paróquia Porciúncula de Sant'Ana" }      // Local fixo
               ]
             }
           ]
