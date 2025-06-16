@@ -52,25 +52,70 @@ async function enviarMensagem(numero, mensagem) {
 }
 
 
-
-// Função para envio de lembrete de evento usando MENSAGEM DE TEXTO (sem template)
-async function enviarLembreteEventoTexto(numero, eventoNome, dataEvento) {
+// Função para envio de template de lembrete de evento
+async function enviarTemplateLembreteEvento(numero, eventoNome, dataEvento) {
   try {
+    // Validação dos parâmetros obrigatórios
     if (!numero || !eventoNome || !dataEvento) {
       console.error(`❌ Parâmetros inválidos. Dados recebidos: numero=${numero}, eventoNome=${eventoNome}, dataEvento=${dataEvento}`);
       return;
     }
 
-    const mensagem = `📅 *Lembrete de Evento EAC*\n\nEvento: *${eventoNome}*\nData: *${dataEvento}*\n\nEsperamos você lá! 🙌`;
+    // Log antes do envio
+    console.log(`📨 Preparando envio para: ${numero}`);
+    console.log(`📅 Evento: ${eventoNome} | Data: ${dataEvento}`);
+    console.log(`Debug: Parâmetros do template - eventoNome: ${eventoNome}, dataEvento: ${dataEvento}`);
+    console.log(`Debug: Objeto template completo: ${JSON.stringify({
+          name: "eac_lembrete_v1", // <-- NOME DO TEMPLATE ATUALIZADO AQUI
+          language: { code: "pt_BR" },
+          components: [
+            {
+              type: "body",
+              parameters: [
+                { type: "text", text: eventoNome },                             // Mapeia para {{evento_nome}}
+                { type: "text", text: "15/06/2025" },                           // Mapeia para {{prazo_resposta}}
+                { type: "text", text: dataEvento },                             // Mapeia para {{data_evento}}
+                { type: "text", text: "09:00 às 18:00" }                       // Mapeia para {{hora_evento}}
+              ]
+            }
+          ]
+        }, null, 2)}`);
 
-    await enviarMensagem(numero, mensagem);
+    await axios.post(
+      `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
+      {
+        messaging_product: "whatsapp",
+        to: numero,
+        type: "template",
+        template: {
+          name: "eac_lembrete_v1", // <-- NOME DO TEMPLATE ATUALIZADO AQUI
+          language: { code: "pt_BR" },
+          components: [
+            {
+              type: "body",
+              parameters: [
+                { type: "text", text: eventoNome },
+                { type: "text", text: "15/06/2025" },
+                { type: "text", text: dataEvento },
+                { type: "text", text: "09:00" }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      }
+     );
 
-    console.log(`✅ Lembrete de evento enviado para: ${numero}`);
+    console.log(`✅ Template enviado com sucesso para: ${numero}`);
   } catch (error) {
-    console.error(`❌ Erro ao enviar lembrete de evento para o número ${numero}:`, error);
+    console.error(`❌ Erro ao enviar template para o número ${numero}:`, JSON.stringify(error.response?.data || error, null, 2));
   }
 }
-
 
 
 
@@ -224,10 +269,8 @@ async function verificarEventosParaLembrete() {
       if (eventosDaSemana.length > 0) {
         const saudacao = "🌞 Bom dia! Aqui é o EAC Porciúncula trazendo um resumo dos próximos eventos:\n";
         const cabecalho = `📅 *Agenda da Semana (${hoje.toLocaleDateString()} a ${seteDiasDepois.toLocaleDateString()})*\n\n`;
-        const corpo = eventosDaSemana.join("\n");
         const rodape = "\n👉 Se tiver dúvida, fale com a gente!";
 
-        const mensagemFinal = `${saudacao}${cabecalho}${corpo}${rodape}`;
 
       for (const contato of numeros) {
         for (const evento of eventosDaSemana) {
@@ -430,9 +473,7 @@ async function dispararEventosSemTemplate() {
       return;
     }
 
-    const mensagemFinal = "📢 *Próximos Eventos do EAC:*";
 
-" + eventosDaSemana.join("\n") + "\n\n👉 Se tiver dúvidas, fale com a gente!";
 
     const rangeFila = "fila_envio!F2:G";
     const filaResponse = await sheets.spreadsheets.values.get({
@@ -633,9 +674,7 @@ async function dispararEventosSemTemplate() {
       return;
     }
 
-    const mensagemFinal = "📢 *Próximos Eventos do EAC:*
 
-" + eventosDaSemana.join("\n") + "\n\n👉 Se tiver dúvidas, fale com a gente!";
 
     const rangeFila = "fila_envio!F2:G";
     const filaResponse = await sheets.spreadsheets.values.get({
@@ -812,3 +851,10 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
+
+    const mensagemFinal = `📢 *Próximos Eventos do EAC:*
+
+${eventosDaSemana.join("\n")}
+
+🟠 Se tiver dúvidas, fale com a gente!`;
+    
