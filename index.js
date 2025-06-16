@@ -203,7 +203,11 @@ async function verificarEventosParaLembrete() {
       if (!isNaN(dataEvento.getTime()) && dataEvento >= hoje && dataEvento <= seteDiasDepois) {
         const titulo = row[1] || "(Sem título)";
         const dataFormatada = `${dataEvento.getDate().toString().padStart(2, '0')}/${(dataEvento.getMonth() + 1).toString().padStart(2, '0')}`;
-        eventosDaSemana.push(`🔔 ${dataFormatada} - ${titulo}`);
+        /*eventosDaSemana.push(`🔔 ${dataFormatada} - ${titulo}`)*/
+        eventosDaSemana.push({
+          nome: titulo,
+          data: dataFormatada
+        });
       }
     }
 
@@ -256,13 +260,11 @@ async function verificarEventosParaLembrete() {
 
       for (const contato of numeros) {
         for (const evento of eventosDaSemana) {
-          const nomeEvento = evento.nome;
-          const dataEvento = evento.data;
-      
-          await enviarTemplateLembreteEvento(contato.numero, nomeEvento, dataEvento);
+          await enviarTemplateLembreteEvento(contato.numero, evento.nome, evento.data);
         }
         updates[contato.idx] = ["Pendente"];
       }
+
 
       } else {
         console.log("Nenhum evento na próxima semana.");
