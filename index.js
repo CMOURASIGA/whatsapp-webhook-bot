@@ -64,6 +64,22 @@ async function enviarTemplateLembreteEvento(numero, eventoNome, dataEvento) {
     // Log antes do envio
     console.log(`📨 Preparando envio para: ${numero}`);
     console.log(`📅 Evento: ${eventoNome} | Data: ${dataEvento}`);
+    console.log(`Debug: Parâmetros do template - eventoNome: ${eventoNome}, dataEvento: ${dataEvento}`);
+    console.log(`Debug: Objeto template completo: ${JSON.stringify({
+          name: "lembrete_evento_eac_v3",
+          language: { code: "pt_BR" },
+          components: [
+            {
+              type: "body",
+              parameters: [
+                { type: "text", text: eventoNome },
+                { type: "text", text: "15/06/2025" },
+                { type: "text", text: dataEvento },
+                { type: "text", text: "09:00 às 18:00" }
+              ]
+            }
+          ]
+        }, null, 2)}`);
 
     await axios.post(
       `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
@@ -81,8 +97,7 @@ async function enviarTemplateLembreteEvento(numero, eventoNome, dataEvento) {
                 { type: "text", text: eventoNome },                             // Nome do evento
                 { type: "text", text: "15/06/2025" },                           // Prazo para resposta (fixo)
                 { type: "text", text: dataEvento },                             // Data do evento
-                { type: "text", text: "09:00 às 18:00" },                       // Horário fixo
-                //{ type: "text", text: "Paróquia Porciúncula de Sant'Ana" }      // Local fixo
+                { type: "text", text: "09:00 às 18:00" }                       // Horário fixo
               ]
             }
           ]
