@@ -52,70 +52,25 @@ async function enviarMensagem(numero, mensagem) {
 }
 
 
-// Função para envio de template de lembrete de evento
-async function enviarTemplateLembreteEvento(numero, eventoNome, dataEvento) {
+
+// Função para envio de lembrete de evento usando MENSAGEM DE TEXTO (sem template)
+async function enviarLembreteEventoTexto(numero, eventoNome, dataEvento) {
   try {
-    // Validação dos parâmetros obrigatórios
     if (!numero || !eventoNome || !dataEvento) {
       console.error(`❌ Parâmetros inválidos. Dados recebidos: numero=${numero}, eventoNome=${eventoNome}, dataEvento=${dataEvento}`);
       return;
     }
 
-    // Log antes do envio
-    console.log(`📨 Preparando envio para: ${numero}`);
-    console.log(`📅 Evento: ${eventoNome} | Data: ${dataEvento}`);
-    console.log(`Debug: Parâmetros do template - eventoNome: ${eventoNome}, dataEvento: ${dataEvento}`);
-    console.log(`Debug: Objeto template completo: ${JSON.stringify({
-          name: "eac_lembrete_v1", // <-- NOME DO TEMPLATE ATUALIZADO AQUI
-          language: { code: "pt_BR" },
-          components: [
-            {
-              type: "body",
-              parameters: [
-                { type: "text", text: eventoNome },                             // Mapeia para {{evento_nome}}
-                { type: "text", text: "15/06/2025" },                           // Mapeia para {{prazo_resposta}}
-                { type: "text", text: dataEvento },                             // Mapeia para {{data_evento}}
-                { type: "text", text: "09:00 às 18:00" }                       // Mapeia para {{hora_evento}}
-              ]
-            }
-          ]
-        }, null, 2)}`);
+    const mensagem = `📅 *Lembrete de Evento EAC*\n\nEvento: *${eventoNome}*\nData: *${dataEvento}*\n\nEsperamos você lá! 🙌`;
 
-    await axios.post(
-      `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
-      {
-        messaging_product: "whatsapp",
-        to: numero,
-        type: "template",
-        template: {
-          name: "eac_lembrete_v1", // <-- NOME DO TEMPLATE ATUALIZADO AQUI
-          language: { code: "pt_BR" },
-          components: [
-            {
-              type: "body",
-              parameters: [
-                { type: "text", text: eventoNome },
-                { type: "text", text: "15/06/2025" },
-                { type: "text", text: dataEvento },
-                { type: "text", text: "09:00" }
-              ]
-            }
-          ]
-        }
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
-      }
-     );
+    await enviarMensagem(numero, mensagem);
 
-    console.log(`✅ Template enviado com sucesso para: ${numero}`);
+    console.log(`✅ Lembrete de evento enviado para: ${numero}`);
   } catch (error) {
-    console.error(`❌ Erro ao enviar template para o número ${numero}:`, JSON.stringify(error.response?.data || error, null, 2));
+    console.error(`❌ Erro ao enviar lembrete de evento para o número ${numero}:`, error);
   }
 }
+
 
 
 
@@ -857,4 +812,3 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
-
