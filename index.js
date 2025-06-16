@@ -430,7 +430,7 @@ async function dispararEventosSemTemplate() {
       return;
     }
 
-    const mensagemFinal = "📢 *Próximos Eventos do EAC:*
+    const mensagemFinal = "📢 *Próximos Eventos do EAC:*";
 
 " + eventosDaSemana.join("\n") + "\n\n👉 Se tiver dúvidas, fale com a gente!";
 
