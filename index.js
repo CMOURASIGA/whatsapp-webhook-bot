@@ -66,16 +66,16 @@ async function enviarTemplateLembreteEvento(numero, eventoNome, dataEvento) {
     console.log(`📅 Evento: ${eventoNome} | Data: ${dataEvento}`);
     console.log(`Debug: Parâmetros do template - eventoNome: ${eventoNome}, dataEvento: ${dataEvento}`);
     console.log(`Debug: Objeto template completo: ${JSON.stringify({
-          name: "lembrete_evento_eac_v3",
+          name: "eac_lembrete_v1", // <-- NOME DO TEMPLATE ATUALIZADO AQUI
           language: { code: "pt_BR" },
           components: [
             {
               type: "body",
               parameters: [
-                { type: "text", text: eventoNome },
-                { type: "text", text: "15/06/2025" },
-                { type: "text", text: dataEvento },
-                { type: "text", text: "09:00 às 18:00" }
+                { type: "text", text: eventoNome },                             // Mapeia para {{evento_nome}}
+                { type: "text", text: "15/06/2025" },                           // Mapeia para {{prazo_resposta}}
+                { type: "text", text: dataEvento },                             // Mapeia para {{data_evento}}
+                { type: "text", text: "09:00 às 18:00" }                       // Mapeia para {{hora_evento}}
               ]
             }
           ]
@@ -88,16 +88,16 @@ async function enviarTemplateLembreteEvento(numero, eventoNome, dataEvento) {
         to: numero,
         type: "template",
         template: {
-          name: "lembrete_evento_eac_v3",
+          name: "eac_lembrete_v1", // <-- NOME DO TEMPLATE ATUALIZADO AQUI
           language: { code: "pt_BR" },
           components: [
             {
               type: "body",
               parameters: [
-                { type: "text", text: eventoNome },                             // Nome do evento
-                { type: "text", text: "15/06/2025" },                           // Prazo para resposta (fixo)
-                { type: "text", text: dataEvento },                             // Data do evento
-                { type: "text", text: "09:00 às 18:00" }                       // Horário fixo
+                { type: "text", text: eventoNome },
+                { type: "text", text: "15/06/2025" },
+                { type: "text", text: dataEvento },
+                { type: "text", text: "09:00" }
               ]
             }
           ]
@@ -109,13 +109,14 @@ async function enviarTemplateLembreteEvento(numero, eventoNome, dataEvento) {
           "Content-Type": "application/json"
         }
       }
-    );
+     );
 
     console.log(`✅ Template enviado com sucesso para: ${numero}`);
   } catch (error) {
     console.error(`❌ Erro ao enviar template para o número ${numero}:`, JSON.stringify(error.response?.data || error, null, 2));
   }
 }
+
 
 
 // Atualiza contatos pendentes para ativo
