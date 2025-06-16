@@ -918,7 +918,7 @@ app.get("/dispararConfirmacaoParticipacao", async (req, res) => {
 
     const spreadsheetId = "1I988yRvGYfjhoqmFvdQbjO9qWzTB4T6yv0dDBxQ-oEg";
     const aba = "Inscricoes_Prioritarias";
-    const range = `${aba}!A2:W73`;  // Linhas 2 a 73, até a coluna W
+    const range = `${aba}!A2:W2`;  // Linhas 2 a 73, até a coluna W
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
