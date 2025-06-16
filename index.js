@@ -464,6 +464,7 @@ async function dispararEventosSemTemplate() {
           dataEvento = new Date(dataTexto);
         }
 
+
         if (!isNaN(dataEvento.getTime()) && dataEvento >= hoje && dataEvento <= seteDiasDepois) {
           return `📅 *${titulo}* - ${dataTexto}`;
         }
