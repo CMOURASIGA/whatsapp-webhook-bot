@@ -321,7 +321,7 @@ app.post("/webhook", async (req, res) => {
       "5": "📱 *WhatsApp da Paróquia*\n\nQuer falar direto com a secretaria da paróquia? Acesse:\n👉 https://wa.me/5521981140278",
       "6": "", // será tratado abaixo
       "7": "🎵 *Nossa Playlist no Spotify*\n\nMúsicas que marcaram nossos encontros e nos inspiram todos os dias:\n👉 https://open.spotify.com/playlist/0JquaFjl5u9GrvSgML4S0R",
-      "8": "💬 *Grupo para Tirar Dúvidas*\n\nSe quiser conversar com alguém da equipe, tirar dúvidas ou interagir com outros participantes, entre no nosso grupo de WhatsApp:\n👉 https://chat.whatsapp.com/Ls0dE394bED4fp7AEQLKyu",
+      "8": "💬 *Grupo para Tirar Dúvidas*\n\nSe quiser conversar com alguém da equipe, tirar dúvidas ou interagir com outros participantes, entre no nosso grupo de WhatsApp:\n👉 https://chat.whatsapp.com/HBwZfZqZPjtAYUs3m4f6xg",
     };
 
     if (textoRecebido === "6") {
