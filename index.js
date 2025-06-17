@@ -546,7 +546,7 @@ app.get("/disparo", async (req, res) => {
     
     if (tipo === "agradecimento_inscricao") {
       console.log("🚀 Disparando agradecimento de inscrição...");
-      await dispararAgradecimentoInscricaoParaAtivos();
+      await dispararAgradecimentoInscricaoParaNaoIncluidos();
       return res.status(200).send("✅ Agradecimento enviado com sucesso.");
     }
 
@@ -763,7 +763,7 @@ app.get("/disparo", async (req, res) => {
     
     if (tipo === "agradecimento_inscricao") {
       console.log("🚀 Disparando agradecimento de inscrição...");
-      await dispararAgradecimentoInscricaoParaAtivos();
+      await dispararAgradecimentoInscricaoParaNaoIncluidos();
       return res.status(200).send("✅ Agradecimento enviado com sucesso.");
     }
 
