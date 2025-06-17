@@ -1026,6 +1026,109 @@ app.get("/painel", (req, res) => {
 });
 
 
+
+const disparosDisponiveis = [
+  { nome: "Enviar Boas-Vindas", tipo: "boasvindas", endpoint: "/disparo?chave=" + process.env.CHAVE_DISPARO + "&tipo=boasvindas", descricao: "Dispara o template de boas-vindas para contatos ativos" },
+  { nome: "Enviar Eventos da Semana", tipo: "eventos", endpoint: "/disparo?chave=" + process.env.CHAVE_DISPARO + "&tipo=eventos", descricao: "Envia resumo dos eventos próximos da planilha" },
+  { nome: "Enviar Confirmação de Participação", tipo: "confirmacao", endpoint: "/dispararConfirmacaoParticipacao?chave=" + process.env.CHAVE_DISPARO, descricao: "Dispara o template de confirmação para os prioritários" }
+];
+
+let statusLogs = [];
+
+// Painel Web para disparos manuais com tabela, formulário e logs
+app.get("/painel", (req, res) => {
+  const listaDisparos = disparosDisponiveis.map(d => `
+    <tr>
+      <td>${d.nome}</td>
+      <td>${d.tipo}</td>
+      <td>${d.endpoint}</td>
+      <td>${d.descricao}</td>
+      <td><button onclick="disparar('${d.tipo}', '${d.endpoint}')">Disparar</button></td>
+    </tr>
+  `).join('');
+
+  const logsHTML = statusLogs.slice(-10).reverse().map(log => `
+    <li>[${new Date(log.horario).toLocaleString()}] ${log.resultado} (${log.tipo})</li>
+  `).join('');
+
+  res.send(`
+    <html>
+    <head>
+      <title>Painel de Disparos - EAC</title>
+      <style>
+        body { font-family: Arial; margin: 20px; }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        button { padding: 5px 10px; }
+      </style>
+    </head>
+    <body>
+      <h2>📢 Painel de Disparos Manuais - EAC</h2>
+
+      <h3>📋 Disparos Disponíveis</h3>
+      <table>
+        <tr>
+          <th>Nome</th>
+          <th>Tipo</th>
+          <th>Endpoint</th>
+          <th>Descrição</th>
+          <th>Ação</th>
+        </tr>
+        ${listaDisparos}
+      </table>
+
+      <h3>➕ Adicionar Novo Disparo Manual</h3>
+      <form onsubmit="adicionarDisparo(); return false;">
+        <label>Nome:</label><br><input type="text" id="nome"><br>
+        <label>Tipo:</label><br><input type="text" id="tipo"><br>
+        <label>Endpoint:</label><br><input type="text" id="endpoint"><br>
+        <label>Descrição:</label><br><input type="text" id="descricao"><br><br>
+        <button type="submit">Adicionar Disparo</button>
+      </form>
+
+      <h3>📜 Últimos Logs de Disparo</h3>
+      <ul>${logsHTML}</ul>
+
+      <script>
+        function disparar(tipo, endpoint) {
+          fetch(endpoint)
+            .then(response => response.text())
+            .then(msg => alert(msg))
+            .catch(err => alert('Erro: ' + err));
+        }
+
+        function adicionarDisparo() {
+          const nome = document.getElementById('nome').value;
+          const tipo = document.getElementById('tipo').value;
+          const endpoint = document.getElementById('endpoint').value;
+          const descricao = document.getElementById('descricao').value;
+
+          fetch('/adicionarDisparo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nome, tipo, endpoint, descricao })
+          })
+          .then(response => response.text())
+          .then(msg => alert(msg))
+          .catch(err => alert('Erro: ' + err));
+        }
+      </script>
+    </body>
+    </html>
+  `);
+});
+
+app.post("/adicionarDisparo", express.json(), (req, res) => {
+  const { nome, tipo, endpoint, descricao } = req.body;
+  if (!nome || !tipo || !endpoint) {
+    return res.status(400).send("❌ Preencha todos os campos obrigatórios.");
+  }
+  disparosDisponiveis.push({ nome, tipo, endpoint, descricao });
+  res.send("✅ Novo disparo adicionado com sucesso!");
+});
+
+
 // Inicialização do servidor
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
