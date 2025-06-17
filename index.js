@@ -1143,7 +1143,9 @@ async function enviarTemplateAgradecimentoInscricao(numero) {
   }
 }
 
-async function dispararAgradecimentoInscricaoParaAtivos() {
+
+// Função para envio de agradecimento apenas para não incluídos
+async function dispararAgradecimentoInscricaoParaNaoIncluidos() {
   try {
     const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
     const auth = new google.auth.GoogleAuth({
@@ -1153,32 +1155,31 @@ async function dispararAgradecimentoInscricaoParaAtivos() {
     const client = await auth.getClient();
     const sheets = google.sheets({ version: "v4", auth: client });
 
-    const planilhas = [
-      "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8",
-      "1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4"
-    ];
+    const spreadsheetId = "1I988yRvGYfjhoqmFvdQbjO9qWzTB4T6yv0dDBxQ-oEg";
+    const range = "Inscricoes_Prioritarias!G2:U";
 
-    for (const spreadsheetId of planilhas) {
-      const rangeFila = "fila_envio!F2:G";
-      const response = await sheets.spreadsheets.values.get({
-        spreadsheetId,
-        range: rangeFila,
-      });
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range,
+    });
 
-      const contatos = response.data.values || [];
+    const contatos = response.data.values || [];
 
-      for (const [numero, status] of contatos) {
-        if (status === "Ativo") {
-          await enviarTemplateAgradecimentoInscricao(numero);
-        }
+    for (const linha of contatos) {
+      const numero = linha[0];    // Coluna G (índice 0)
+      const statusU = linha[14];  // Coluna U (índice 14)
+
+      if (statusU && statusU.toLowerCase() === "nao_incluido") {
+        await enviarTemplateAgradecimentoInscricao(numero);
       }
     }
 
-    console.log("✅ Disparo de agradecimento concluído.");
+    console.log("✅ Disparo de agradecimento finalizado para os não incluídos.");
   } catch (error) {
     console.error("❌ Erro ao disparar agradecimento:", error);
   }
 }
+
 
 
 // Inicialização do servidor
