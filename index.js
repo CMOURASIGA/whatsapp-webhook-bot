@@ -1145,6 +1145,8 @@ async function enviarTemplateAgradecimentoInscricao(numero) {
 
 
 // Função para envio de agradecimento apenas para não incluídos
+
+// Função para envio de agradecimento apenas para não incluídos
 async function dispararAgradecimentoInscricaoParaNaoIncluidos() {
   try {
     const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
@@ -1165,20 +1167,32 @@ async function dispararAgradecimentoInscricaoParaNaoIncluidos() {
 
     const contatos = response.data.values || [];
 
-    for (const linha of contatos) {
+    let totalEncontrados = 0;
+    let totalEnviados = 0;
+
+    for (const [index, linha] of contatos.entries()) {
       const numero = linha[0];    // Coluna G (índice 0)
       const statusU = linha[14];  // Coluna U (índice 14)
 
       if (statusU && statusU.toLowerCase() === "nao_incluido") {
-        await enviarTemplateAgradecimentoInscricao(numero);
+        totalEncontrados++;
+        console.log(`➡️ Linha ${index + 2} | Número: ${numero} | Status: ${statusU} | Enviando...`);
+        try {
+          await enviarTemplateAgradecimentoInscricao(numero);
+          totalEnviados++;
+          console.log(`✅ Mensagem enviada com sucesso para: ${numero}`);
+        } catch (erroEnvio) {
+          console.error(`❌ Erro ao enviar para ${numero}:`, JSON.stringify(erroEnvio.response?.data || erroEnvio, null, 2));
+        }
       }
     }
 
-    console.log("✅ Disparo de agradecimento finalizado para os não incluídos.");
+    console.log(`📊 Resultado final: ${totalEncontrados} contatos encontrados com 'nao_incluido'. ${totalEnviados} mensagens enviadas.`);
   } catch (error) {
     console.error("❌ Erro ao disparar agradecimento:", error);
   }
 }
+
 
 
 
