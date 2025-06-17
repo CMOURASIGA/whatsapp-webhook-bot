@@ -986,9 +986,48 @@ app.get("/dispararConfirmacaoParticipacao", async (req, res) => {
 
 
 
+
+// Painel Web para disparos manuais
+app.get("/painel", (req, res) => {
+  res.send(`
+    <html>
+    <head>
+      <title>Painel de Disparos - EAC</title>
+      <style>
+        body { font-family: Arial; margin: 40px; }
+        button { padding: 10px 20px; margin: 10px; }
+      </style>
+    </head>
+    <body>
+      <h2>📢 Painel de Disparos Manuais - EAC</h2>
+
+      <button onclick="disparar('boasvindas')">Enviar Boas-Vindas</button>
+      <button onclick="disparar('eventos')">Enviar Eventos da Semana</button>
+      <button onclick="disparar('confirmacao')">Enviar Confirmação de Participação</button>
+
+      <script>
+        function disparar(tipo) {
+          const chave = '${process.env.CHAVE_DISPARO}';
+          let url = '';
+
+          if (tipo === 'boasvindas') url = '/disparo?chave=' + chave + '&tipo=boasvindas';
+          if (tipo === 'eventos') url = '/disparo?chave=' + chave + '&tipo=eventos';
+          if (tipo === 'confirmacao') url = '/dispararConfirmacaoParticipacao?chave=' + chave;
+
+          fetch(url)
+            .then(response => response.text())
+            .then(msg => alert(msg))
+            .catch(err => alert('Erro: ' + err));
+        }
+      </script>
+    </body>
+    </html>
+  `);
+});
+
+
 // Inicialização do servidor
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
-
