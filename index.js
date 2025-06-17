@@ -543,6 +543,13 @@ app.get("/disparo", async (req, res) => {
       return res.status(200).send("✅ Eventos da semana enviados com sucesso.");
     }
 
+    
+    if (tipo === "agradecimento_inscricao") {
+      console.log("🚀 Disparando agradecimento de inscrição...");
+      await dispararAgradecimentoInscricaoParaAtivos();
+      return res.status(200).send("✅ Agradecimento enviado com sucesso.");
+    }
+
     console.log("📢 Tipo de disparo inválido ou não informado.");
     res.status(400).send("❌ Tipo de disparo inválido. Use tipo=boasvindas ou tipo=eventos.");
   } catch (erro) {
@@ -751,6 +758,13 @@ app.get("/disparo", async (req, res) => {
       console.log("🚀 Disparando eventos da semana (sem template)...");
       await dispararEventosSemTemplate();
       return res.status(200).send("✅ Eventos da semana enviados com sucesso.");
+    }
+
+    
+    if (tipo === "agradecimento_inscricao") {
+      console.log("🚀 Disparando agradecimento de inscrição...");
+      await dispararAgradecimentoInscricaoParaAtivos();
+      return res.status(200).send("✅ Agradecimento enviado com sucesso.");
     }
 
     console.log("📢 Tipo de disparo inválido ou não informado.");
@@ -1028,6 +1042,7 @@ app.get("/painel", (req, res) => {
 
 
 const disparosDisponiveis = [
+  { nome: "Enviar Agradecimento de Inscrição", tipo: "agradecimento_inscricao", endpoint: "/disparo?chave=" + process.env.CHAVE_DISPARO + "&tipo=agradecimento_inscricao", descricao: "Dispara o template de agradecimento para os inscritos não selecionados" },
   { nome: "Enviar Boas-Vindas", tipo: "boasvindas", endpoint: "/disparo?chave=" + process.env.CHAVE_DISPARO + "&tipo=boasvindas", descricao: "Dispara o template de boas-vindas para contatos ativos" },
   { nome: "Enviar Eventos da Semana", tipo: "eventos", endpoint: "/disparo?chave=" + process.env.CHAVE_DISPARO + "&tipo=eventos", descricao: "Envia resumo dos eventos próximos da planilha" },
   { nome: "Enviar Confirmação de Participação", tipo: "confirmacao", endpoint: "/dispararConfirmacaoParticipacao?chave=" + process.env.CHAVE_DISPARO, descricao: "Dispara o template de confirmação para os prioritários" }
@@ -1127,6 +1142,78 @@ app.post("/adicionarDisparo", express.json(), (req, res) => {
   disparosDisponiveis.push({ nome, tipo, endpoint, descricao });
   res.send("✅ Novo disparo adicionado com sucesso!");
 });
+
+
+
+// Função para envio do template de agradecimento de inscrição
+async function enviarTemplateAgradecimentoInscricao(numero) {
+  try {
+    console.log(`📨 Enviando template de agradecimento para: ${numero}`);
+
+    await axios.post(
+      `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
+      {
+        messaging_product: "whatsapp",
+        to: numero,
+        type: "template",
+        template: {
+          name: "eac_agradecimento_inscricao_v1",
+          language: { code: "pt_BR" }
+        }
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    console.log(`✅ Agradecimento enviado com sucesso para: ${numero}`);
+    statusLogs.push({ tipo: 'agradecimento_inscricao', resultado: '✅ Agradecimento enviado', horario: new Date() });
+
+  } catch (error) {
+    console.error(`❌ Erro ao enviar agradecimento para ${numero}:`, JSON.stringify(error.response?.data || error, null, 2));
+    statusLogs.push({ tipo: 'agradecimento_inscricao', resultado: '❌ Erro no envio', horario: new Date() });
+  }
+}
+
+async function dispararAgradecimentoInscricaoParaAtivos() {
+  try {
+    const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+    const client = await auth.getClient();
+    const sheets = google.sheets({ version: "v4", auth: client });
+
+    const planilhas = [
+      "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8",
+      "1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4"
+    ];
+
+    for (const spreadsheetId of planilhas) {
+      const rangeFila = "fila_envio!F2:G";
+      const response = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: rangeFila,
+      });
+
+      const contatos = response.data.values || [];
+
+      for (const [numero, status] of contatos) {
+        if (status === "Ativo") {
+          await enviarTemplateAgradecimentoInscricao(numero);
+        }
+      }
+    }
+
+    console.log("✅ Disparo de agradecimento concluído.");
+  } catch (error) {
+    console.error("❌ Erro ao disparar agradecimento:", error);
+  }
+}
 
 
 // Inicialização do servidor
