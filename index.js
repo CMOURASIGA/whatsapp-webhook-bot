@@ -1215,7 +1215,7 @@ async function dispararAgradecimentoInscricaoParaAtivos() {
   }
 }
 
-
+//iniciando
 // Inicialização do servidor
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
