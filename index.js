@@ -433,7 +433,7 @@ async function dispararEventosSemTemplate() {
     const client = await auth.getClient();
     const sheets = google.sheets({ version: "v4", auth: client });
 
-    const spreadsheetIdEventos = "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8";
+    const spreadsheetIdEventos = "1BXitZrMOxFasCJAqkxVwdkYPOLLUDEM2Gb1x6mP8Y8";
     const rangeEventos = "comunicados!A2:G";
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: spreadsheetIdEventos,
@@ -451,22 +451,33 @@ async function dispararEventosSemTemplate() {
     seteDiasDepois.setDate(hoje.getDate() + 7);
 
     const eventosDaSemana = rows
-      .map(row => {
+      .map((row, index) => {
         const titulo = row[1] || "(Sem título)";
         const dataTexto = row[6];
-        if (!dataTexto) return null;
+        if (!dataTexto) {
+          console.log(`📛 Linha ${index + 2} ignorada: data vazia.`);
+          return null;
+        }
 
         let dataEvento;
-        if (/^\d{2}\/\d{2}\/\d{4}$/.test(dataTexto)) {
-          const [dia, mes, ano] = dataTexto.split("/");
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(dataTexto.trim())) {
+          const [dia, mes, ano] = dataTexto.trim().split("/");
           dataEvento = new Date(`${ano}-${mes}-${dia}`);
         } else {
-          dataEvento = new Date(dataTexto);
+          dataEvento = new Date(dataTexto.trim());
         }
 
-        if (!isNaN(dataEvento.getTime()) && dataEvento >= hoje && dataEvento <= seteDiasDepois) {
-          return `📅 *${titulo}* - ${dataTexto}`;
+        if (!isNaN(dataEvento.getTime())) {
+          if (dataEvento >= hoje && dataEvento <= seteDiasDepois) {
+            console.log(`✅ Linha ${index + 2} válida: '${titulo}' em ${dataTexto}`);
+            return `📅 *${titulo}* - ${dataTexto}`;
+          } else {
+            console.log(`📆 Linha ${index + 2} fora da janela de envio: ${dataTexto}`);
+          }
+        } else {
+          console.log(`⚠️ Linha ${index + 2} possui data inválida: ${dataTexto}`);
         }
+
         return null;
       })
       .filter(e => e);
@@ -483,11 +494,12 @@ ${eventosDaSemana.join("\n")}
 🟠 Se tiver dúvidas, fale com a gente!`;
 
     const planilhas = [
-      "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8",
+      "1BXitZrMOxFasCJAqkxVwdkYPOLLUDEM2Gb1x6mP8Y8",
       "1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4"
     ];
 
     for (const spreadsheetId of planilhas) {
+      console.log(`📂 Acessando planilha: ${spreadsheetId}`);
       const rangeFila = "fila_envio!F2:H";
       const filaResponse = await sheets.spreadsheets.values.get({
         spreadsheetId,
@@ -495,13 +507,16 @@ ${eventosDaSemana.join("\n")}
       });
 
       const contatos = filaResponse.data.values || [];
+      console.log(`🔍 Verificando ${contatos.length} registros...`);
 
       for (let i = 0; i < contatos.length; i++) {
         const numero = contatos[i][0];
         const status = contatos[i][2];
 
+        console.log(`📱 Linha ${i + 2}: número = ${numero}, status = ${status}`);
+
         if (!numero || status === "Enviado") {
-          console.log(`⏭️ Pulando linha ${i + 2} da planilha ${spreadsheetId} (já enviado ou vazio)`);
+          console.log(`⏭️ Pulando linha ${i + 2} da planilha ${spreadsheetId} (já enviado ou sem número)`);
           continue;
         }
 
@@ -534,6 +549,7 @@ ${eventosDaSemana.join("\n")}
     console.error("❌ Erro ao disparar eventos sem template:", error);
   }
 }
+
 
 
 // Atualização do endpoint /disparo para incluir comunicado_geral
