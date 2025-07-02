@@ -682,7 +682,6 @@ async function dispararEventosSemTemplate() {
     const client = await auth.getClient();
     const sheets = google.sheets({ version: "v4", auth: client });
 
-    // Consulta de eventos apenas na planilha dos Encontristas
     const spreadsheetIdEventos = "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8";
     const rangeEventos = "comunicados!A2:G";
     const response = await sheets.spreadsheets.values.get({
@@ -692,7 +691,7 @@ async function dispararEventosSemTemplate() {
 
     const rows = response.data.values;
     if (!rows) {
-      console.log("Nenhum evento encontrado na planilha de comunicados.");
+      console.log("Nenhum evento encontrado na planilha.");
       return;
     }
 
@@ -701,10 +700,13 @@ async function dispararEventosSemTemplate() {
     seteDiasDepois.setDate(hoje.getDate() + 7);
 
     const eventosDaSemana = rows
-      .map(row => {
+      .map((row, idx) => {
         const titulo = row[1] || "(Sem título)";
         const dataTexto = row[6];
-        if (!dataTexto) return null;
+        if (!dataTexto) {
+          console.log(`📛 Linha ${idx + 2} ignorada: data vazia.`);
+          return null;
+        }
 
         let dataEvento;
         if (/^\d{2}\/\d{2}\/\d{4}$/.test(dataTexto)) {
@@ -716,6 +718,8 @@ async function dispararEventosSemTemplate() {
 
         if (!isNaN(dataEvento.getTime()) && dataEvento >= hoje && dataEvento <= seteDiasDepois) {
           return `📅 *${titulo}* - ${dataTexto}`;
+        } else {
+          console.log(`📛 Linha ${idx + 2} fora da janela de envio: ${dataTexto}`);
         }
         return null;
       })
@@ -726,31 +730,61 @@ async function dispararEventosSemTemplate() {
       return;
     }
 
-    const mensagemFinal = `📢 *Próximos Eventos do EAC:*\n\n${eventosDaSemana.join("\\n")}\n\n🟠 Se tiver dúvidas, fale com a gente!`;
+    const mensagemFinal = `📢 *Próximos Eventos do EAC:*\n\n${eventosDaSemana.join("\n")}\n\n🟠 Se tiver dúvidas, fale com a gente!`;
 
-    // Agora busca os contatos nas DUAS planilhas
     const planilhas = [
-      "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8", // Encontristas
-      "1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4"  // Encontreiros
+      "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8",
+      "1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4"
     ];
 
     for (const spreadsheetId of planilhas) {
-      const rangeFila = "fila_envio!F2:G";
+      console.log(`📂 Acessando planilha: ${spreadsheetId}`);
+      const rangeFila = "fila_envio!F2:H";
       const filaResponse = await sheets.spreadsheets.values.get({
         spreadsheetId,
         range: rangeFila,
       });
 
       const contatos = filaResponse.data.values || [];
-      const numerosAtivos = contatos
-        .map(([numero, status]) => ({ numero, status }))
-        .filter(c => c.status === "Ativo");
+      console.log(`🔍 Verificando ${contatos.length} registros...`);
+      let enviados = 0;
 
-      console.log(`📨 Encontrados ${numerosAtivos.length} contatos ativos na planilha ${spreadsheetId}`);
+      for (let i = 0; i < contatos.length; i++) {
+        const numero = contatos[i][0];
+        const status = contatos[i][2];
 
-      for (const contato of numerosAtivos) {
-        await enviarMensagem(contato.numero, mensagemFinal);
+        console.log(`➡️ Linha ${i + 2}: número = ${numero}, status = ${status}`);
+
+        if (!numero || status === "Enviado") {
+          console.log(`⏭️ Pulando linha ${i + 2} da planilha ${spreadsheetId} (já enviado ou sem número)`);
+          continue;
+        }
+
+        try {
+          await enviarMensagem(numero, mensagemFinal);
+          console.log(`✅ Evento enviado para ${numero}`);
+          enviados++;
+
+          const updateRange = `fila_envio!H${i + 2}`;
+          await sheets.spreadsheets.values.update({
+            spreadsheetId,
+            range: updateRange,
+            valueInputOption: "RAW",
+            resource: { values: [["Enviado"]] },
+          });
+        } catch (erroEnvio) {
+          console.error(`❌ Erro ao enviar evento para ${numero}:`, erroEnvio.message);
+          const updateRange = `fila_envio!H${i + 2}`;
+          await sheets.spreadsheets.values.update({
+            spreadsheetId,
+            range: updateRange,
+            valueInputOption: "RAW",
+            resource: { values: [["Erro"]] },
+          });
+        }
       }
+
+      console.log(`📊 Total enviados nesta planilha: ${enviados}`);
     }
 
     console.log("✅ Disparo de eventos sem template concluído.");
@@ -758,6 +792,7 @@ async function dispararEventosSemTemplate() {
     console.error("❌ Erro ao disparar eventos sem template:", error);
   }
 }
+
 
 
 app.get("/disparo", async (req, res) => {
