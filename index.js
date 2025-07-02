@@ -454,10 +454,12 @@ async function dispararEventosSemTemplate() {
       .map((row, index) => {
         const titulo = row[1] || "(Sem título)";
         const dataTexto = row[6];
-        if (!dataTexto) {
-          console.log(`📛 Linha ${index + 2} ignorada: data vazia.`);
+        console.log(`🕵️‍♂️ Linha ${index + 2} - data bruta: '${dataTexto}'`);
+        if (!dataTexto || dataTexto.trim() === '') {
+          console.log(`📛 Linha ${index + 2} ignorada: data vazia ou em branco.`);
           return null;
         }
+
 
         let dataEvento;
         if (/^\d{2}\/\d{2}\/\d{4}$/.test(dataTexto.trim())) {
