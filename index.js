@@ -200,7 +200,7 @@ async function verificarEventosParaLembrete() {
 
     const hoje = new Date();
     const seteDiasDepois = new Date(hoje);
-    seteDiasDepois.setDate(hoje.getDate() + 7);
+    seteDiasDepois.setDate(hoje.getDate() + 60);
 
     const eventosDaSemana = [];
 
@@ -450,7 +450,7 @@ async function dispararEventosSemTemplate() {
     hoje.setHours(0, 0, 0, 0); // Limpa hora/min/seg/milissegundo
 
     const seteDiasDepois = new Date(hoje);
-    seteDiasDepois.setDate(hoje.getDate() + 7);
+    seteDiasDepois.setDate(hoje.getDate() + 60);
 
 
 
