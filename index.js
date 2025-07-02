@@ -500,7 +500,7 @@ ${eventosDaSemana.join("\n")}
 🟠 Se tiver dúvidas, fale com a gente!`;
 
     const planilhas = [
-      "1BXitZrMOxFasCJAqkxVwdkYPOLLUDEM2Gb1x6mP8Y8",
+      "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8",
       "1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4"
     ];
 
