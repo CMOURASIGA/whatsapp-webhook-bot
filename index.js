@@ -447,11 +447,11 @@ async function dispararEventosSemTemplate() {
     }
 
     const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0); // Zera horas para início do dia
+    hoje.setHours(0, 0, 0, 0); // Limpa hora/min/seg/milissegundo
 
-    const seteDiasDepois = new Date();
+    const seteDiasDepois = new Date(hoje);
     seteDiasDepois.setDate(hoje.getDate() + 7);
-    seteDiasDepois.setHours(23, 59, 59, 999); // Fim do sétimo dia
+
 
 
     const eventosDaSemana = rows
@@ -704,7 +704,7 @@ async function dispararEventosSemTemplate() {
     const client = await auth.getClient();
     const sheets = google.sheets({ version: "v4", auth: client });
 
-    const spreadsheetIdEventos = "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8";
+    const spreadsheetIdEventos = "1BXitZrMOxFasCJAqkxVwdkYPOLLUDEM2Gb1x6mP8Y8";
     const rangeEventos = "comunicados!A2:G";
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: spreadsheetIdEventos,
@@ -718,31 +718,40 @@ async function dispararEventosSemTemplate() {
     }
 
     const hoje = new Date();
-    const seteDiasDepois = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const seteDiasDepois = new Date(hoje);
     seteDiasDepois.setDate(hoje.getDate() + 7);
 
     const eventosDaSemana = rows
-      .map((row, idx) => {
+      .map((row, index) => {
         const titulo = row[1] || "(Sem título)";
         const dataTexto = row[6];
-        if (!dataTexto) {
-          console.log(`📛 Linha ${idx + 2} ignorada: data vazia.`);
+        console.log(`🕵️‍♂️ Linha ${index + 2} - data bruta: '${dataTexto}'`);
+        if (!dataTexto || dataTexto.trim() === '') {
+          console.log(`📛 Linha ${index + 2} ignorada: data vazia ou em branco.`);
           return null;
         }
 
         let dataEvento;
-        if (/^\d{2}\/\d{2}\/\d{4}$/.test(dataTexto)) {
-          const [dia, mes, ano] = dataTexto.split("/");
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(dataTexto.trim())) {
+          const [dia, mes, ano] = dataTexto.trim().split("/");
           dataEvento = new Date(`${ano}-${mes}-${dia}`);
         } else {
-          dataEvento = new Date(dataTexto);
+          dataEvento = new Date(dataTexto.trim());
+        }
+        dataEvento.setHours(0, 0, 0, 0);
+
+        if (!isNaN(dataEvento.getTime())) {
+          if (dataEvento >= hoje && dataEvento <= seteDiasDepois) {
+            console.log(`✅ Linha ${index + 2} válida: '${titulo}' em ${dataTexto}`);
+            return `📅 *${titulo}* - ${dataTexto}`;
+          } else {
+            console.log(`📆 Linha ${index + 2} fora da janela de envio: ${dataTexto}`);
+          }
+        } else {
+          console.log(`⚠️ Linha ${index + 2} possui data inválida: ${dataTexto}`);
         }
 
-        if (!isNaN(dataEvento.getTime()) && dataEvento >= hoje && dataEvento <= seteDiasDepois) {
-          return `📅 *${titulo}* - ${dataTexto}`;
-        } else {
-          console.log(`📛 Linha ${idx + 2} fora da janela de envio: ${dataTexto}`);
-        }
         return null;
       })
       .filter(e => e);
@@ -752,10 +761,14 @@ async function dispararEventosSemTemplate() {
       return;
     }
 
-    const mensagemFinal = `📢 *Próximos Eventos do EAC:*\n\n${eventosDaSemana.join("\n")}\n\n🟠 Se tiver dúvidas, fale com a gente!`;
+    const mensagemFinal = `📢 *Próximos Eventos do EAC:*
+
+${eventosDaSemana.join("\n")}
+
+🟠 Se tiver dúvidas, fale com a gente!`;
 
     const planilhas = [
-      "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8",
+      "1BXitZrMOxFasCJAqkxVwdkYPOLLUDEM2Gb1x6mP8Y8",
       "1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4"
     ];
 
@@ -769,13 +782,12 @@ async function dispararEventosSemTemplate() {
 
       const contatos = filaResponse.data.values || [];
       console.log(`🔍 Verificando ${contatos.length} registros...`);
-      let enviados = 0;
 
       for (let i = 0; i < contatos.length; i++) {
         const numero = contatos[i][0];
         const status = contatos[i][2];
 
-        console.log(`➡️ Linha ${i + 2}: número = ${numero}, status = ${status}`);
+        console.log(`📱 Linha ${i + 2}: número = ${numero}, status = ${status}`);
 
         if (!numero || status === "Enviado") {
           console.log(`⏭️ Pulando linha ${i + 2} da planilha ${spreadsheetId} (já enviado ou sem número)`);
@@ -785,7 +797,6 @@ async function dispararEventosSemTemplate() {
         try {
           await enviarMensagem(numero, mensagemFinal);
           console.log(`✅ Evento enviado para ${numero}`);
-          enviados++;
 
           const updateRange = `fila_envio!H${i + 2}`;
           await sheets.spreadsheets.values.update({
@@ -805,8 +816,6 @@ async function dispararEventosSemTemplate() {
           });
         }
       }
-
-      console.log(`📊 Total enviados nesta planilha: ${enviados}`);
     }
 
     console.log("✅ Disparo de eventos sem template concluído.");
@@ -814,6 +823,7 @@ async function dispararEventosSemTemplate() {
     console.error("❌ Erro ao disparar eventos sem template:", error);
   }
 }
+
 
 
 
