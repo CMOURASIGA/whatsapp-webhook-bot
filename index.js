@@ -233,7 +233,7 @@ async function verificarEventosParaLembrete() {
     ];
 
     for (const spreadsheetId of planilhas) {
-      const rangeFila = "fila_envio!F2:G";
+      const rangeFila = "Fila_Envio!F2:G";
       const fila = await sheets.spreadsheets.values.get({ spreadsheetId, range: rangeFila });
       const contatos = fila.data.values || [];
 
@@ -506,7 +506,7 @@ ${eventosDaSemana.join("\n")}
 
     for (const spreadsheetId of planilhas) {
       console.log(`📂 Acessando planilha: ${spreadsheetId}`);
-      const rangeFila = "fila_envio!F2:H";
+      const rangeFila = "Fila_Envio!F2:H";
       const filaResponse = await sheets.spreadsheets.values.get({
         spreadsheetId,
         range: rangeFila,
