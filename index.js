@@ -447,8 +447,12 @@ async function dispararEventosSemTemplate() {
     }
 
     const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0); // Zera horas para início do dia
+
     const seteDiasDepois = new Date();
     seteDiasDepois.setDate(hoje.getDate() + 7);
+    seteDiasDepois.setHours(23, 59, 59, 999); // Fim do sétimo dia
+
 
     const eventosDaSemana = rows
       .map((row, index) => {
