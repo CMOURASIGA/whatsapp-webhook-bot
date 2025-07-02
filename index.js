@@ -433,7 +433,7 @@ async function dispararEventosSemTemplate() {
     const client = await auth.getClient();
     const sheets = google.sheets({ version: "v4", auth: client });
 
-    const spreadsheetIdEventos = "1BXitZrMOxFasCJAqkxVwdkYPOLLUDEM2Gb1x6mP8Y8";
+    const spreadsheetIdEventos = process.env.SPREADSHEET_ID_EVENTOS;
     const rangeEventos = "comunicados!A2:G";
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: spreadsheetIdEventos,
