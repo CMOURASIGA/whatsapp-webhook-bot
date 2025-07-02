@@ -514,13 +514,7 @@ ${eventosDaSemana.join("\n")}
   }
 }
 
-
-
-
-
-
-
-
+// Atualização do endpoint /disparo para incluir comunicado_geral
 app.get("/disparo", async (req, res) => {
   const chave = req.query.chave;
   const tipo = req.query.tipo;
@@ -543,11 +537,16 @@ app.get("/disparo", async (req, res) => {
       return res.status(200).send("✅ Eventos da semana enviados com sucesso.");
     }
 
-    
     if (tipo === "agradecimento_inscricao") {
       console.log("🚀 Disparando agradecimento de inscrição...");
       await dispararAgradecimentoInscricaoParaNaoIncluidos();
       return res.status(200).send("✅ Agradecimento enviado com sucesso.");
+    }
+
+    if (tipo === "comunicado_geral") {
+      console.log("🚀 Disparando comunicado geral para contatos da fila_envio...");
+      await dispararComunicadoGeralFila();
+      return res.status(200).send("✅ Comunicado geral enviado com sucesso.");
     }
 
     console.log("📢 Tipo de disparo inválido ou não informado.");
@@ -557,6 +556,7 @@ app.get("/disparo", async (req, res) => {
     res.status(500).send("❌ Erro ao processar o disparo.");
   }
 });
+
 
 
 // CRON Jobs
@@ -1002,16 +1002,14 @@ app.get("/dispararConfirmacaoParticipacao", async (req, res) => {
 
 
 // Painel Web para disparos manuais
-
-
-
-
 const disparosDisponiveis = [
   { nome: "Enviar Agradecimento de Inscrição", tipo: "agradecimento_inscricao", endpoint: "/disparo?chave=" + process.env.CHAVE_DISPARO + "&tipo=agradecimento_inscricao", descricao: "Dispara o template de agradecimento para os inscritos não selecionados" },
   { nome: "Enviar Boas-Vindas", tipo: "boasvindas", endpoint: "/disparo?chave=" + process.env.CHAVE_DISPARO + "&tipo=boasvindas", descricao: "Dispara o template de boas-vindas para contatos ativos" },
   { nome: "Enviar Eventos da Semana", tipo: "eventos", endpoint: "/disparo?chave=" + process.env.CHAVE_DISPARO + "&tipo=eventos", descricao: "Envia resumo dos eventos próximos da planilha" },
-  { nome: "Enviar Confirmação de Participação", tipo: "confirmacao", endpoint: "/dispararConfirmacaoParticipacao?chave=" + process.env.CHAVE_DISPARO, descricao: "Dispara o template de confirmação para os prioritários" }
+  { nome: "Enviar Confirmação de Participação", tipo: "confirmacao", endpoint: "/dispararConfirmacaoParticipacao?chave=" + process.env.CHAVE_DISPARO, descricao: "Dispara o template de confirmação para os prioritários" },
+  { nome: "Enviar Comunicado Geral", tipo: "comunicado_geral", endpoint: "/disparo?chave=" + process.env.CHAVE_DISPARO + "&tipo=comunicado_geral", descricao: "Dispara um comunicado via template para números da aba Fila_Envio" }
 ];
+
 
 let statusLogs = [];
 
@@ -1193,8 +1191,85 @@ async function dispararAgradecimentoInscricaoParaNaoIncluidos() {
   }
 }
 
+// Função para envio de comunicado geral a partir da aba fila_envio
+async function dispararComunicadoGeralFila() {
+  try {
+    const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+    const client = await auth.getClient();
+    const sheets = google.sheets({ version: "v4", auth: client });
 
+    const spreadsheetId = "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8";
+    const aba = "fila_envio";
+    const range = `${aba}!F2:H`;
 
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range,
+    });
+
+    const rows = response.data.values || [];
+
+    console.log(`🔎 Registros encontrados: ${rows.length}`);
+
+    for (let i = 0; i < rows.length; i++) {
+      const numero = rows[i][0];     // Coluna F
+      const status = rows[i][2];     // Coluna H
+
+      if (!numero || status === "Enviado") {
+        console.log(`⏭️ Pulando linha ${i + 2} (já enviado ou vazio)`);
+        continue;
+      }
+
+      try {
+        await axios.post(
+          `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
+          {
+            messaging_product: "whatsapp",
+            to: numero,
+            type: "template",
+            template: {
+              name: "eac_comunicado_geral_v1",
+              language: { code: "pt_BR" }
+            }
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json"
+            }
+          }
+        );
+
+        console.log(`✅ Mensagem enviada para ${numero}`);
+
+        const updateRange = `${aba}!H${i + 2}`;
+        await sheets.spreadsheets.values.update({
+          spreadsheetId,
+          range: updateRange,
+          valueInputOption: "RAW",
+          resource: { values: [["Enviado"]] },
+        });
+      } catch (erroEnvio) {
+        console.error(`❌ Erro ao enviar para ${numero}:`, erroEnvio.message);
+        const updateRange = `${aba}!H${i + 2}`;
+        await sheets.spreadsheets.values.update({
+          spreadsheetId,
+          range: updateRange,
+          valueInputOption: "RAW",
+          resource: { values: [["Erro"]] },
+        });
+      }
+    }
+
+    console.log("📢 Disparo geral finalizado.");
+  } catch (erro) {
+    console.error("❌ Erro geral:", erro);
+  }
+}
 
 // Inicialização do servidor
 const PORT = process.env.PORT || 3000;
