@@ -735,11 +735,13 @@ async function dispararEventosSemTemplate() {
         let dataEvento;
         if (/^\d{2}\/\d{2}\/\d{4}$/.test(dataTexto.trim())) {
           const [dia, mes, ano] = dataTexto.trim().split("/");
-          dataEvento = new Date(`${ano}-${mes}-${dia}`);
+          dataEvento = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia));
         } else {
           dataEvento = new Date(dataTexto.trim());
         }
         dataEvento.setHours(0, 0, 0, 0);
+
+        console.log(`🔎 Linha ${index + 2} - data convertida: ${dataEvento.toISOString()}`);
 
         if (!isNaN(dataEvento.getTime())) {
           if (dataEvento >= hoje && dataEvento <= seteDiasDepois) {
@@ -823,8 +825,6 @@ ${eventosDaSemana.join("\n")}
     console.error("❌ Erro ao disparar eventos sem template:", error);
   }
 }
-
-
 
 
 app.get("/disparo", async (req, res) => {
