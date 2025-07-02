@@ -464,8 +464,6 @@ async function dispararEventosSemTemplate() {
           dataEvento = new Date(dataTexto);
         }
 
-
-
         if (!isNaN(dataEvento.getTime()) && dataEvento >= hoje && dataEvento <= seteDiasDepois) {
           return `📅 *${titulo}* - ${dataTexto}`;
         }
@@ -490,21 +488,44 @@ ${eventosDaSemana.join("\n")}
     ];
 
     for (const spreadsheetId of planilhas) {
-      const rangeFila = "fila_envio!F2:G";
+      const rangeFila = "fila_envio!F2:H";
       const filaResponse = await sheets.spreadsheets.values.get({
         spreadsheetId,
         range: rangeFila,
       });
 
       const contatos = filaResponse.data.values || [];
-      const numerosAtivos = contatos
-        .map(([numero, status]) => ({ numero, status }))
-        .filter(c => c.status === "Ativo");
 
-      console.log(`📨 Encontrados ${numerosAtivos.length} contatos ativos na planilha ${spreadsheetId}`);
+      for (let i = 0; i < contatos.length; i++) {
+        const numero = contatos[i][0];
+        const status = contatos[i][2];
 
-      for (const contato of numerosAtivos) {
-        await enviarMensagem(contato.numero, mensagemFinal);
+        if (!numero || status === "Enviado") {
+          console.log(`⏭️ Pulando linha ${i + 2} da planilha ${spreadsheetId} (já enviado ou vazio)`);
+          continue;
+        }
+
+        try {
+          await enviarMensagem(numero, mensagemFinal);
+          console.log(`✅ Evento enviado para ${numero}`);
+
+          const updateRange = `fila_envio!H${i + 2}`;
+          await sheets.spreadsheets.values.update({
+            spreadsheetId,
+            range: updateRange,
+            valueInputOption: "RAW",
+            resource: { values: [["Enviado"]] },
+          });
+        } catch (erroEnvio) {
+          console.error(`❌ Erro ao enviar evento para ${numero}:`, erroEnvio.message);
+          const updateRange = `fila_envio!H${i + 2}`;
+          await sheets.spreadsheets.values.update({
+            spreadsheetId,
+            range: updateRange,
+            valueInputOption: "RAW",
+            resource: { values: [["Erro"]] },
+          });
+        }
       }
     }
 
@@ -513,6 +534,7 @@ ${eventosDaSemana.join("\n")}
     console.error("❌ Erro ao disparar eventos sem template:", error);
   }
 }
+
 
 // Atualização do endpoint /disparo para incluir comunicado_geral
 app.get("/disparo", async (req, res) => {
@@ -1232,7 +1254,7 @@ async function dispararComunicadoGeralFila() {
             to: numero,
             type: "template",
             template: {
-              name: "eac_comunicado_geral_v2",
+              name: "eac_comunicado_geral_v1",
               language: { code: "pt_BR" }
             }
           },
