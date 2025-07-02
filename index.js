@@ -1232,7 +1232,7 @@ async function dispararComunicadoGeralFila() {
             to: numero,
             type: "template",
             template: {
-              name: "eac_comunicado_geral_v1",
+              name: "eac_comunicado_geral_v2",
               language: { code: "pt_BR" }
             }
           },
