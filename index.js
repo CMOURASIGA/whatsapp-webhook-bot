@@ -1192,13 +1192,13 @@ async function dispararComunicadoGeralFila() {
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-    });
+    } );
     const client = await auth.getClient();
     const sheets = google.sheets({ version: "v4", auth: client });
 
-    const spreadsheetId = "1I988yRvGYfjhoqmFvdQbjO9qWzTB4T6yv0dDBxQ-oEg";
-    const aba = "Cadastro_Oficial";
-   const range = `${aba}!G2:U`;
+    const spreadsheetId = "1I988yRvGYfjhoqmFvdQbjO9qWzTB4T6yv0dDBxQ-oEg"; // <-- ID DA NOVA PLANILHA
+    const aba = "Cadastro_Oficial"; // <-- NOVA ABA
+    const range = `${aba}!G2:U`; // <-- NOVO RANGE: Coluna G para número, Coluna U para status
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
@@ -1210,8 +1210,8 @@ async function dispararComunicadoGeralFila() {
     console.log(`🔎 Registros encontrados: ${rows.length}`);
 
     for (let i = 0; i < rows.length; i++) {
-      const numero = rows[i][0];     // Coluna F
-      const status = rows[i][2];     // Coluna H
+      const numero = rows[i][0];     // <-- Coluna G (primeira do range G2:U)
+      const status = rows[i][14];    // <-- Coluna U (décima quinta do range G2:U)
 
       if (!numero || status === "Enviado") {
         console.log(`⏭️ Pulando linha ${i + 2} (já enviado ou vazio)`);
@@ -1226,7 +1226,7 @@ async function dispararComunicadoGeralFila() {
             to: numero,
             type: "template",
             template: {
-              name: "eac_comunicado_geral_v2",
+              name: "eac_comunicado_geral_v2", // <-- NOVO NOME DO TEMPLATE
               language: { code: "pt_BR" }
             }
           },
@@ -1236,11 +1236,11 @@ async function dispararComunicadoGeralFila() {
               "Content-Type": "application/json"
             }
           }
-        );
+         );
 
         console.log(`✅ Mensagem enviada para ${numero}`);
 
-        const updateRange = `${aba}!H${i + 2}`;
+        const updateRange = `${aba}!U${i + 2}`; // <-- ATUALIZA NA COLUNA U
         await sheets.spreadsheets.values.update({
           spreadsheetId,
           range: updateRange,
@@ -1249,8 +1249,8 @@ async function dispararComunicadoGeralFila() {
         });
       } catch (erroEnvio) {
         console.error(`❌ Erro ao enviar para ${numero}:`, erroEnvio.message);
-        const updateRange = `${aba}!H${i + 2}`;
-        await sheets.spreadsheets.values.update({
+        const updateRange = `${aba}!U${i + 2}`; // <-- ATUALIZA NA COLUNA U
+        await sheets.sheets.values.update({ // Corrigido sheets.sheets para sheets.spreadsheets
           spreadsheetId,
           range: updateRange,
           valueInputOption: "RAW",
