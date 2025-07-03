@@ -429,11 +429,12 @@ async function dispararEventosSemTemplate() {
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-    });
+    } );
     const client = await auth.getClient();
     const sheets = google.sheets({ version: "v4", auth: client });
 
-    const spreadsheetIdEventos = process.env.SPREADSHEET_ID_EVENTOS;
+    // 1. Busca os eventos (sem alteração aqui)
+    const spreadsheetIdEventos = process.env.SPREADSHEET_ID_EVENTOS; // Assumindo que este é o ID da planilha de comunicados
     const rangeEventos = "comunicados!A2:G";
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: spreadsheetIdEventos,
@@ -442,28 +443,20 @@ async function dispararEventosSemTemplate() {
 
     const rows = response.data.values;
     if (!rows) {
-      console.log("Nenhum evento encontrado na planilha.");
+      console.log("Nenhum evento encontrado na planilha de comunicados.");
       return;
     }
 
     const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0); // Limpa hora/min/seg/milissegundo
-
+    hoje.setHours(0, 0, 0, 0);
     const seteDiasDepois = new Date(hoje);
-    seteDiasDepois.setDate(hoje.getDate() + 60);
-
-
+    seteDiasDepois.setDate(hoje.getDate() + 7); // Ou 30, se você já alterou
 
     const eventosDaSemana = rows
       .map((row, index) => {
         const titulo = row[1] || "(Sem título)";
         const dataTexto = row[6];
-        console.log(`🕵️‍♂️ Linha ${index + 2} - data bruta: '${dataTexto}'`);
-        if (!dataTexto || dataTexto.trim() === '') {
-          console.log(`📛 Linha ${index + 2} ignorada: data vazia ou em branco.`);
-          return null;
-        }
-
+        if (!dataTexto || dataTexto.trim() === '') return null;
 
         let dataEvento;
         if (/^\d{2}\/\d{2}\/\d{4}$/.test(dataTexto.trim())) {
@@ -473,17 +466,9 @@ async function dispararEventosSemTemplate() {
           dataEvento = new Date(dataTexto.trim());
         }
 
-        if (!isNaN(dataEvento.getTime())) {
-          if (dataEvento >= hoje && dataEvento <= seteDiasDepois) {
-            console.log(`✅ Linha ${index + 2} válida: '${titulo}' em ${dataTexto}`);
-            return `📅 *${titulo}* - ${dataTexto}`;
-          } else {
-            console.log(`📆 Linha ${index + 2} fora da janela de envio: ${dataTexto}`);
-          }
-        } else {
-          console.log(`⚠️ Linha ${index + 2} possui data inválida: ${dataTexto}`);
+        if (!isNaN(dataEvento.getTime()) && dataEvento >= hoje && dataEvento <= seteDiasDepois) {
+          return `📅 *${titulo}* - ${dataTexto}`;
         }
-
         return null;
       })
       .filter(e => e);
@@ -493,60 +478,110 @@ async function dispararEventosSemTemplate() {
       return;
     }
 
-    const mensagemFinal = `📢 *Próximos Eventos do EAC:*
+    const mensagemFinal = `📢 *Próximos Eventos do EAC:*\n\n${eventosDaSemana.join("\n")}\n\n🟠 Se tiver dúvidas, fale com a gente!`;
 
-${eventosDaSemana.join("\n")}
+    // 2. Lógica de envio para as planilhas de contatos
+    // Usaremos um Set para garantir que cada número receba a mensagem apenas uma vez
+    const numerosJaEnviados = new Set();
 
-🟠 Se tiver dúvidas, fale com a gente!`;
+    // Planilha de Encontreiros (permanece a mesma)
+    const planilhaEncontreirosId = "1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4";
+    console.log(`📂 Acessando planilha de Encontreiros: ${planilhaEncontreirosId}`);
+    const rangeFilaEncontreiros = "Fila_Envio!F2:H"; // Colunas F (número) e H (status)
+    const filaEncontreirosResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: planilhaEncontreirosId,
+      range: rangeFilaEncontreiros,
+    });
+    const contatosEncontreiros = filaEncontreirosResponse.data.values || [];
+    console.log(`🔍 Verificando ${contatosEncontreiros.length} registros na planilha de Encontreiros...`);
 
-    const planilhas = [
-      "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8",
-      "1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4"
-    ];
+    for (let i = 0; i < contatosEncontreiros.length; i++) {
+      const numero = contatosEncontreiros[i][0];
+      const statusEnvio = contatosEncontreiros[i][2]; // Coluna H
 
-    for (const spreadsheetId of planilhas) {
-      console.log(`📂 Acessando planilha: ${spreadsheetId}`);
-      const rangeFila = "Fila_Envio!F2:H";
-      const filaResponse = await sheets.spreadsheets.values.get({
-        spreadsheetId,
-        range: rangeFila,
-      });
-
-      const contatos = filaResponse.data.values || [];
-      console.log(`🔍 Verificando ${contatos.length} registros...`);
-
-      for (let i = 0; i < contatos.length; i++) {
-        const numero = contatos[i][0];
-        const status = contatos[i][2];
-
-        console.log(`📱 Linha ${i + 2}: número = ${numero}, status = ${status}`);
-
-        if (!numero || status === "Enviado") {
-          console.log(`⏭️ Pulando linha ${i + 2} da planilha ${spreadsheetId} (já enviado ou sem número)`);
-          continue;
+      if (!numero || statusEnvio === "Enviado" || numerosJaEnviados.has(numero)) {
+        if (numerosJaEnviados.has(numero)) {
+          console.log(`⏭️ Pulando ${numero} (Encontreiros): já processado nesta execução.`);
+        } else {
+          console.log(`⏭️ Pulando linha ${i + 2} (Encontreiros): já enviado ou sem número.`);
         }
+        continue;
+      }
 
-        try {
-          await enviarMensagem(numero, mensagemFinal);
-          console.log(`✅ Evento enviado para ${numero}`);
+      try {
+        await enviarMensagem(numero, mensagemFinal);
+        console.log(`✅ Evento enviado para ${numero} (Encontreiros)`);
+        numerosJaEnviados.add(numero);
 
-          const updateRange = `fila_envio!H${i + 2}`;
-          await sheets.spreadsheets.values.update({
-            spreadsheetId,
-            range: updateRange,
-            valueInputOption: "RAW",
-            resource: { values: [["Enviado"]] },
-          });
-        } catch (erroEnvio) {
-          console.error(`❌ Erro ao enviar evento para ${numero}:`, erroEnvio.message);
-          const updateRange = `fila_envio!H${i + 2}`;
-          await sheets.spreadsheets.values.update({
-            spreadsheetId,
-            range: updateRange,
-            valueInputOption: "RAW",
-            resource: { values: [["Erro"]] },
-          });
+        const updateRange = `fila_envio!H${i + 2}`;
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: planilhaEncontreirosId,
+          range: updateRange,
+          valueInputOption: "RAW",
+          resource: { values: [["Enviado"]] },
+        });
+      } catch (erroEnvio) {
+        console.error(`❌ Erro ao enviar evento para ${numero} (Encontreiros):`, erroEnvio.message);
+        const updateRange = `fila_envio!H${i + 2}`;
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: planilhaEncontreirosId,
+          range: updateRange,
+          valueInputOption: "RAW",
+          resource: { values: [["Erro"]] },
+        });
+      }
+    }
+
+    // NOVA Planilha de Cadastro Oficial (substitui a de Encontristas)
+    const planilhaCadastroOficialId = "1I988yRvGYfjhoqmFvdQbjO9qWzTB4T6yv0dDBxQ-oEg";
+    const abaCadastroOficial = "Cadastro_Oficial";
+    // Coluna G para número (índice 0 do range G2:U)
+    // Coluna U para status de envio (índice 14 do range G2:U)
+    const rangeCadastroOficial = `${abaCadastroOficial}!G2:U`;
+
+    console.log(`📂 Acessando planilha de Cadastro Oficial: ${planilhaCadastroOficialId}`);
+    const cadastroOficialResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: planilhaCadastroOficialId,
+      range: rangeCadastroOficial,
+    });
+    const contatosCadastroOficial = cadastroOficialResponse.data.values || [];
+    console.log(`🔍 Verificando ${contatosCadastroOficial.length} registros na planilha de Cadastro Oficial...`);
+
+    for (let i = 0; i < contatosCadastroOficial.length; i++) {
+      const numero = contatosCadastroOficial[i][0]; // Coluna G
+      const statusEnvio = contatosCadastroOficial[i][14]; // Coluna U
+
+      if (!numero || statusEnvio === "Enviado" || numerosJaEnviados.has(numero)) {
+        if (numerosJaEnviados.has(numero)) {
+          console.log(`⏭️ Pulando ${numero} (Cadastro Oficial): já processado nesta execução.`);
+        } else {
+          console.log(`⏭️ Pulando linha ${i + 2} (Cadastro Oficial): já enviado ou sem número.`);
         }
+        continue;
+      }
+
+      try {
+        await enviarMensagem(numero, mensagemFinal);
+        console.log(`✅ Evento enviado para ${numero} (Cadastro Oficial)`);
+        numerosJaEnviados.add(numero);
+
+        // ATUALIZA O STATUS NA COLUNA U DA PLANILHA DE CADASTRO OFICIAL
+        const updateRange = `${abaCadastroOficial}!U${i + 2}`;
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: planilhaCadastroOficialId,
+          range: updateRange,
+          valueInputOption: "RAW",
+          resource: { values: [["Enviado"]] },
+        });
+      } catch (erroEnvio) {
+        console.error(`❌ Erro ao enviar evento para ${numero} (Cadastro Oficial):`, erroEnvio.message);
+        const updateRange = `${abaCadastroOficial}!U${i + 2}`;
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: planilhaCadastroOficialId,
+          range: updateRange,
+          valueInputOption: "RAW",
+          resource: { values: [["Erro"]] },
+        });
       }
     }
 
@@ -555,6 +590,7 @@ ${eventosDaSemana.join("\n")}
     console.error("❌ Erro ao disparar eventos sem template:", error);
   }
 }
+
 
 
 
