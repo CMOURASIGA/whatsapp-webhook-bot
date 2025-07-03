@@ -1196,9 +1196,9 @@ async function dispararComunicadoGeralFila() {
     const client = await auth.getClient();
     const sheets = google.sheets({ version: "v4", auth: client });
 
-    const spreadsheetId = "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8";
-    const aba = "fila_envio";
-    const range = `${aba}!F2:H`;
+    const spreadsheetId = "1I988yRvGYfjhoqmFvdQbjO9qWzTB4T6yv0dDBxQ-oEg";
+    const aba = "Cadastro_Oficial";
+   const range = `${aba}!G2:U`;
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
