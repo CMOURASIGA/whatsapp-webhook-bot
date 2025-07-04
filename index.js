@@ -10,7 +10,94 @@ const VERIFY_TOKEN = "meu_token_webhook";
 const token = process.env.TOKEN_WHATSAPP;
 const phone_number_id = "572870979253681";
 
-// Função para montar o menu principal
+// Função para montar o menu principal interativo com botões
+function montarMenuPrincipalInterativo() {
+  return {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    type: "interactive",
+    interactive: {
+      type: "list",
+      header: {
+        type: "text",
+        text: "📋 Menu Principal - EAC Porciúncula"
+      },
+      body: {
+        text: "Como posso te ajudar hoje? Escolha uma das opções:\n\nToque no botão abaixo para ver as opções."
+      },
+      footer: {
+        text: "11:22"
+      },
+      action: {
+        button: "Ver opções",
+        sections: [
+          {
+            title: "📝 Inscrições",
+            rows: [
+              {
+                id: "1",
+                title: "Formulário Encontristas",
+                description: "Inscrição para adolescentes"
+              },
+              {
+                id: "2", 
+                title: "Formulário Encontreiros",
+                description: "Inscrição para equipe"
+              }
+            ]
+          },
+          {
+            title: "📱 Contatos e Redes",
+            rows: [
+              {
+                id: "3",
+                title: "Instagram do EAC",
+                description: "Nosso perfil oficial"
+              },
+              {
+                id: "4",
+                title: "E-mail de contato",
+                description: "Fale conosco por e-mail"
+              },
+              {
+                id: "5",
+                title: "WhatsApp da Paróquia",
+                description: "Contato direto"
+              }
+            ]
+          },
+          {
+            title: "📅 Eventos e Conteúdo",
+            rows: [
+              {
+                id: "6",
+                title: "Eventos do EAC",
+                description: "Agenda de eventos"
+              },
+              {
+                id: "7",
+                title: "Playlist no Spotify",
+                description: "Nossas músicas"
+              },
+              {
+                id: "9",
+                title: "Mensagem do Dia",
+                description: "Inspiração diária"
+              },
+              {
+                id: "10",
+                title: "Versículo do Dia",
+                description: "Palavra de Deus"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  };
+}
+
+// Função para montar o menu principal em texto (fallback)
 function montarMenuPrincipal() {
   return (
     "📋 *Menu Principal - EAC Porciúncula* 📋\n\n" +
@@ -51,6 +138,32 @@ async function enviarMensagem(numero, mensagem) {
   }
 }
 
+// Enviar mensagem interativa para número via WhatsApp Cloud API
+async function enviarMensagemInterativa(numero, mensagemInterativa) {
+  try {
+    const payload = {
+      ...mensagemInterativa,
+      to: numero
+    };
+    
+    await axios.post(
+      `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
+      payload,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    console.log("✅ Mensagem interativa enviada com sucesso para:", numero);
+  } catch (error) {
+    console.error("❌ Erro ao enviar mensagem interativa:", JSON.stringify(error.response?.data || error, null, 2));
+    // Fallback para mensagem de texto
+    console.log("🔄 Tentando enviar como mensagem de texto...");
+    await enviarMensagem(numero, "👋 Seja bem-vindo(a) ao EAC Porciúncula!\n\n" + montarMenuPrincipal());
+  }
+}
 
 // Função para envio de template de lembrete de evento
 async function enviarTemplateLembreteEvento(numero, eventoNome, dataEvento) {
@@ -117,8 +230,6 @@ async function enviarTemplateLembreteEvento(numero, eventoNome, dataEvento) {
   }
 }
 
-
-
 // Atualiza contatos pendentes para ativo
 async function reativarContatosPendentes() {
   try {
@@ -175,29 +286,6 @@ async function verificarEventosParaLembrete() {
     const rows = response.data.values;
     if (!rows) return;
 
-    /*const hoje = new Date();
-    const amanha = new Date(hoje);
-    seteDiasDepois.setDate(hoje.getDate() + 7);
-    const eventosDaSemana = [];
-
-    for (const row of rows) {
-      const valorData = row[6];
-      if (!valorData) continue;
-
-      let dataEvento;
-      if (/^\d{2}\/\d{2}\/\d{4}$/.test(valorData)) {
-        const [dia, mes, ano] = valorData.split("/");
-        dataEvento = new Date(`${ano}-${mes}-${dia}`);
-      } else {
-        dataEvento = new Date(valorData);
-      }
-
-      if (!isNaN(dataEvento.getTime()) && dataEvento.toDateString() === amanha.toDateString()) {
-        const titulo = row[1] || "(Sem título)";
-        mensagens.push(`📢 *Lembrete*: Amanhã teremos *${titulo}* no EAC. Esperamos você com alegria! 🙌`);
-      }
-    }*/
-
     const hoje = new Date();
     const seteDiasDepois = new Date(hoje);
     seteDiasDepois.setDate(hoje.getDate() + 60);
@@ -219,7 +307,6 @@ async function verificarEventosParaLembrete() {
       if (!isNaN(dataEvento.getTime()) && dataEvento >= hoje && dataEvento <= seteDiasDepois) {
         const titulo = row[1] || "(Sem título)";
         const dataFormatada = `${dataEvento.getDate().toString().padStart(2, '0')}/${(dataEvento.getMonth() + 1).toString().padStart(2, '0')}`;
-        /*eventosDaSemana.push(`🔔 ${dataFormatada} - ${titulo}`)*/
         eventosDaSemana.push({
           nome: titulo,
           data: dataFormatada
@@ -244,28 +331,6 @@ async function verificarEventosParaLembrete() {
       console.log("📨 Contatos ativos:", numeros.length);
       const updates = contatos.map(([numero, status]) => [status]);
 
-      /*for (const contato of numeros) {
-        const saudacao = "🌞 Bom dia! Aqui é o EAC Porciúncula trazendo uma mensagem especial para você:";
-        for (const mensagem of mensagens) {
-          await enviarMensagem(contato.numero, saudacao);
-          await enviarMensagem(contato.numero, mensagem);
-          updates[contato.idx] = ["Pendente"];
-        }
-      }
-      for (const contato of numeros) {
-        const saudacao = "🌞 Bom dia! Aqui é o EAC Porciúncula trazendo uma mensagem especial para você:";
-  
-        // Envia apenas UMA vez a saudação
-        await enviarMensagem(contato.numero, saudacao);
-
-        // Envia TODAS as mensagens de evento (uma vez cada)
-        for (const mensagem of mensagens) {
-        await enviarMensagem(contato.numero, mensagem);
-        }
-
-        // Atualiza o status para Pendente apenas uma vez no final
-        updates[contato.idx] = ["Pendente"];
-      }*/
       if (eventosDaSemana.length > 0) {
         const saudacao = "🌞 Bom dia! Aqui é o EAC Porciúncula trazendo um resumo dos próximos eventos:\n";
         const cabecalho = `📅 *Agenda da Semana (${hoje.toLocaleDateString()} a ${seteDiasDepois.toLocaleDateString()})*\n\n`;
@@ -280,7 +345,6 @@ async function verificarEventosParaLembrete() {
         }
         updates[contato.idx] = ["Pendente"];
       }
-
 
       } else {
         console.log("Nenhum evento na próxima semana.");
@@ -303,15 +367,31 @@ app.post("/webhook", async (req, res) => {
   const body = req.body;
   if (body.object) {
     const mensagem = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-    if (!mensagem || !mensagem.text || !mensagem.from) return res.sendStatus(200);
+    if (!mensagem || !mensagem.from) return res.sendStatus(200);
 
-    const textoRecebido = mensagem.text.body.toLowerCase().trim();
     const numero = mensagem.from;
+    let textoRecebido = "";
 
+    // Verificar se é mensagem de texto ou interativa
+    if (mensagem.text) {
+      textoRecebido = mensagem.text.body.toLowerCase().trim();
+    } else if (mensagem.interactive) {
+      // Mensagem interativa (resposta de lista ou botão)
+      if (mensagem.interactive.type === "list_reply") {
+        textoRecebido = mensagem.interactive.list_reply.id;
+      } else if (mensagem.interactive.type === "button_reply") {
+        textoRecebido = mensagem.interactive.button_reply.id;
+      }
+    }
+
+    if (!textoRecebido) return res.sendStatus(200);
+
+    // Verificar se é saudação para enviar menu interativo
     if (ehSaudacao(textoRecebido)) {
-    await enviarMensagem(numero, "👋 Seja bem-vindo(a) ao EAC Porciúncula!\n\n" + montarMenuPrincipal());
-    return res.sendStatus(200);
-  }
+      const menuInterativo = montarMenuPrincipalInterativo();
+      await enviarMensagemInterativa(numero, menuInterativo);
+      return res.sendStatus(200);
+    }
 
     const respostas = {
       "1": "📝 *Inscrição de Encontristas*\n\nSe você quer participar como *adolescente encontrista* no nosso próximo EAC, preencha este formulário com atenção:\n👉 https://docs.google.com/forms/d/e/1FAIpQLScrESiqWcBsnqMXGwiOOojIeU6ryhuWwZkL1kMr0QIeosgg5w/viewform?usp=preview",
@@ -321,7 +401,6 @@ app.post("/webhook", async (req, res) => {
       "5": "📱 *WhatsApp da Paróquia*\n\nQuer falar direto com a secretaria da paróquia? Acesse:\n👉 https://wa.me/5521981140278",
       "6": "", // será tratado abaixo
       "7": "🎵 *Nossa Playlist no Spotify*\n\nMúsicas que marcaram nossos encontros e nos inspiram todos os dias:\n👉 https://open.spotify.com/playlist/0JquaFjl5u9GrvSgML4S0R",
-      //"8": "💬 *Grupo para Tirar Dúvidas*\n\nSe quiser conversar com alguém da equipe, tirar dúvidas ou interagir com outros participantes, entre no nosso grupo de WhatsApp:\n👉 https://chat.whatsapp.com/HBwZfZqZPjtAYUs3m4f6xg",
     };
 
     if (textoRecebido === "6") {
@@ -388,7 +467,9 @@ app.post("/webhook", async (req, res) => {
     if (respostas[textoRecebido]) {
       await enviarMensagem(numero, respostas[textoRecebido]);
     } else {
-      await enviarMensagem(numero, `❓ *Ops! Opção inválida.*\n\n${montarMenuPrincipal()}`);
+      // Se não reconhecer a opção, enviar menu interativo novamente
+      const menuInterativo = montarMenuPrincipalInterativo();
+      await enviarMensagemInterativa(numero, menuInterativo);
     }
 
     res.sendStatus(200);
@@ -419,10 +500,7 @@ async function gerarMensagemOpenAI(prompt) {
   return resposta.data.choices[0].message.content.trim();
 }
 
-// Endpoint para disparo manual
-
 // Função para disparar eventos da semana SEM usar template (texto normal)
-
 async function dispararEventosSemTemplate() {
   try {
     const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
@@ -591,9 +669,6 @@ async function dispararEventosSemTemplate() {
   }
 }
 
-
-
-
 // Atualização do endpoint /disparo para incluir comunicado_geral
 app.get("/disparo", async (req, res) => {
   const chave = req.query.chave;
@@ -637,8 +712,6 @@ app.get("/disparo", async (req, res) => {
   }
 });
 
-
-
 // CRON Jobs
 cron.schedule("50 08 * * *", () => {
   console.log("🔁 Reativando contatos com status pendente...");
@@ -649,142 +722,6 @@ cron.schedule("00 09 * * *", () => {
   console.log("⏰ Executando verificação de eventos para lembrete às 09:00...");
   verificarEventosParaLembrete();
 });
-
-// Execução inicial
-//reativarContatosPendentes();
-//verificarEventosParaLembrete();
-
-
-// Função para envio do template de boas-vindas (primeiro contato)
-async function enviarTemplateBoasVindas(numero) {
-  try {
-    console.log(`📨 Enviando template de boas-vindas para: ${numero}`);
-
-    await axios.post(
-      `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
-      {
-        messaging_product: "whatsapp",
-        to: numero,
-        type: "template",
-        template: {
-          name: "eac_boasvindas_v1",
-          language: { code: "pt_BR" }
-        }
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
-      }
-    );
-
-    console.log(`✅ Template de boas-vindas enviado com sucesso para: ${numero}`);
-  } catch (error) {
-    console.error(`❌ Erro ao enviar boas-vindas para ${numero}:`, JSON.stringify(error.response?.data || error, null, 2));
-  }
-}
-
-// Função para disparar boas-vindas para todos os contatos ativos nas duas planilhas
-async function dispararBoasVindasParaAtivos() {
-  try {
-    const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-    });
-    const client = await auth.getClient();
-    const sheets = google.sheets({ version: "v4", auth: client });
-
-    const planilhas = [
-      "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8",
-      "1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4"
-    ];
-
-    for (const spreadsheetId of planilhas) {
-      const rangeFila = "fila_envio!F2:G";
-      const response = await sheets.spreadsheets.values.get({
-        spreadsheetId,
-        range: rangeFila,
-      });
-
-      const contatos = response.data.values || [];
-
-      const numerosAtivos = contatos
-        .map(([numero, status]) => ({ numero, status }))
-        .filter(c => c.status === "Ativo");
-
-      console.log(`📨 Encontrados ${numerosAtivos.length} contatos ativos na planilha ${spreadsheetId}`);
-
-      for (const contato of numerosAtivos) {
-        await enviarTemplateBoasVindas(contato.numero);
-      }
-    }
-
-    console.log("✅ Disparo de boas-vindas concluído.");
-  } catch (error) {
-    console.error("❌ Erro ao disparar boas-vindas para contatos ativos:", error);
-  }
-}
-
-// Atualizando o endpoint /disparo para incluir o tipo boasvindas
-
-
-
-
-app.get("/disparo", async (req, res) => {
-  const chave = req.query.chave;
-  const tipo = req.query.tipo;
-  const chaveCorreta = process.env.CHAVE_DISPARO;
-
-  if (chave !== chaveCorreta) {
-    return res.status(401).send("❌ Acesso não autorizado.");
-  }
-
-  try {
-    if (tipo === "boasvindas") {
-      console.log("🚀 Disparando boas-vindas para todos os contatos ativos...");
-      await dispararBoasVindasParaAtivos();
-      return res.status(200).send("✅ Boas-vindas enviadas com sucesso.");
-    }
-
-    if (tipo === "eventos") {
-      console.log("🚀 Disparando eventos da semana (sem template)...");
-      await dispararEventosSemTemplate();
-      return res.status(200).send("✅ Eventos da semana enviados com sucesso.");
-    }
-
-    
-    if (tipo === "agradecimento_inscricao") {
-      console.log("🚀 Disparando agradecimento de inscrição...");
-      await dispararAgradecimentoInscricaoParaNaoIncluidos();
-      return res.status(200).send("✅ Agradecimento enviado com sucesso.");
-    }
-
-    console.log("📢 Tipo de disparo inválido ou não informado.");
-    res.status(400).send("❌ Tipo de disparo inválido. Use tipo=boasvindas ou tipo=eventos.");
-  } catch (erro) {
-    console.error("❌ Erro no disparo manual:", erro);
-    res.status(500).send("❌ Erro ao processar o disparo.");
-  }
-});
-
-
-// CRON Jobs
-cron.schedule("50 08 * * *", () => {
-  console.log("🔁 Reativando contatos com status pendente...");
-  reativarContatosPendentes();
-});
-
-cron.schedule("00 09 * * *", () => {
-  console.log("⏰ Executando verificação de eventos para lembrete às 09:00...");
-  verificarEventosParaLembrete();
-});
-
-// Execução inicial
-//reativarContatosPendentes();
-//verificarEventosParaLembrete();
-
 
 // Função para envio do template de boas-vindas (primeiro contato)
 async function enviarTemplateBoasVindas(numero) {
@@ -863,49 +800,6 @@ async function dispararBoasVindasParaAtivos() {
     console.error("❌ Erro ao disparar boas-vindas para contatos ativos:", error);
   }
 }
-
-/*async function dispararBoasVindasParaAtivos() {
-  try {
-    const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-    });
-    const client = await auth.getClient();
-    const sheets = google.sheets({ version: "v4", auth: client });
-
-    const planilhas = [
-      "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8",
-      "1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4"
-    ];
-
-    for (const spreadsheetId of planilhas) {
-      const rangeFila = "fila_envio!F2:G";
-      const response = await sheets.spreadsheets.values.get({
-        spreadsheetId,
-        range: rangeFila,
-      });
-
-      const contatos = response.data.values || [];
-
-      const numerosAtivos = contatos
-        .map(([numero, status]) => ({ numero, status }))
-        .filter(c => c.status === "Ativo");
-
-      console.log(`📨 Encontrados ${numerosAtivos.length} contatos ativos na planilha ${spreadsheetId}`);
-
-      for (const contato of numerosAtivos) {
-        await enviarTemplateBoasVindas(contato.numero);
-      }
-    }
-
-    console.log("✅ Disparo de boas-vindas concluído.");
-  } catch (error) {
-    console.error("❌ Erro ao disparar boas-vindas para contatos ativos:", error);
-  }
-}*/
-
-// Atualizando o endpoint /disparo para incluir o tipo boasvindas
 
 app.get("/dispararConfirmacaoParticipacao", async (req, res) => {
   const chave = req.query.chave;
@@ -992,9 +886,6 @@ app.get("/dispararConfirmacaoParticipacao", async (req, res) => {
   }
 });
 
-
-
-
 // Painel Web para disparos manuais
 const disparosDisponiveis = [
   { nome: "Enviar Agradecimento de Inscrição", tipo: "agradecimento_inscricao", endpoint: "/disparo?chave=" + process.env.CHAVE_DISPARO + "&tipo=agradecimento_inscricao", descricao: "Dispara o template de agradecimento para os inscritos não selecionados" },
@@ -1003,7 +894,6 @@ const disparosDisponiveis = [
   { nome: "Enviar Confirmação de Participação", tipo: "confirmacao", endpoint: "/dispararConfirmacaoParticipacao?chave=" + process.env.CHAVE_DISPARO, descricao: "Dispara o template de confirmação para os prioritários" },
   { nome: "Enviar Comunicado Geral", tipo: "comunicado_geral", endpoint: "/disparo?chave=" + process.env.CHAVE_DISPARO + "&tipo=comunicado_geral", descricao: "Dispara um comunicado via template para números da aba Fila_Envio" }
 ];
-
 
 let statusLogs = [];
 
@@ -1100,8 +990,6 @@ app.post("/adicionarDisparo", express.json(), (req, res) => {
   res.send("✅ Novo disparo adicionado com sucesso!");
 });
 
-
-
 // Função para envio do template de agradecimento de inscrição
 async function enviarTemplateAgradecimentoInscricao(numero) {
   try {
@@ -1134,9 +1022,6 @@ async function enviarTemplateAgradecimentoInscricao(numero) {
     statusLogs.push({ tipo: 'agradecimento_inscricao', resultado: '❌ Erro no envio', horario: new Date() });
   }
 }
-
-
-// Função para envio de agradecimento apenas para não incluídos
 
 // Função para envio de agradecimento apenas para não incluídos
 async function dispararAgradecimentoInscricaoParaNaoIncluidos() {
@@ -1250,7 +1135,7 @@ async function dispararComunicadoGeralFila() {
       } catch (erroEnvio) {
         console.error(`❌ Erro ao enviar para ${numero}:`, erroEnvio.message);
         const updateRange = `${aba}!U${i + 2}`; // <-- ATUALIZA NA COLUNA U
-        await sheets.sheets.values.update({ // Corrigido sheets.sheets para sheets.spreadsheets
+        await sheets.spreadsheets.values.update({
           spreadsheetId,
           range: updateRange,
           valueInputOption: "RAW",
@@ -1270,3 +1155,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
+
