@@ -1215,6 +1215,7 @@ let metricas = {
 };
 
 // Registra acesso do usuário e salva também na planilha
+// Substitua toda a função antiga por essa abaixo
 async function registrarAcessoUsuario(numero, opcaoEscolhida = null) {
   const agora = new Date();
   const hoje = agora.toISOString().split('T')[0];
@@ -1282,9 +1283,9 @@ async function registrarAcessoUsuario(numero, opcaoEscolhida = null) {
 }
 
 
+
 // Inicialização do servidor
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
-
