@@ -492,12 +492,21 @@ app.post("/webhook", async (req, res) => {
     }
 
     if (respostas[textoRecebido]) {
-      await enviarMensagem(numero, respostas[textoRecebido]);
+    await enviarMensagem(numero, respostas[textoRecebido]);
+    await registrarAcessoUsuario(numero, textoRecebido); // registra acesso normal
     } else {
-      // Se não reconhecer a opção, enviar menu interativo novamente
-      const menuInterativo = montarMenuPrincipalInterativo();
-      await enviarMensagemInterativa(numero, menuInterativo);
+    // Fallback humanizado
+    const mensagemFallback =
+        "🤖 Não entendi bem sua mensagem...\n\n" +
+        "📌 Já avisei nossa equipe e alguém vai te responder em breve! Enquanto isso, você pode acessar o menu novamente tocando abaixo 👇";
+
+    await enviarMensagem(numero, mensagemFallback);
+    const menuInterativo = montarMenuPrincipalInterativo();
+    await enviarMensagemInterativa(numero, menuInterativo);
+
+    await registrarAcessoUsuario(numero, "mensagem fora do menu"); // registra o tipo de fallback
     }
+
 
     res.sendStatus(200);
   } else {
