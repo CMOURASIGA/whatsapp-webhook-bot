@@ -1197,6 +1197,47 @@ async function dispararComunicadoGeralFila() {
   }
 }
 
+
+// ================================================================
+// INTEGRAÇÃO COM PLANILHA DE ACESSOS (GOOGLE SHEETS)
+// ================================================================
+
+/**
+ * Registra um acesso na planilha do Google Sheets
+ * Colunas: Data | Hora | Número | Opção | Primeira Vez
+ * @param {string} numero 
+ * @param {string} opcao 
+ * @param {boolean} primeiraVez 
+ */
+async function registrarAcessoNaPlanilha(numero, opcao = "menu", primeiraVez = false) {
+  try {
+    const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+    const client = await auth.getClient();
+    const sheets = google.sheets({ version: "v4", auth: client });
+
+    const agora = new Date();
+    const data = agora.toLocaleDateString("pt-BR");
+    const hora = agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    
+    const linha = [[data, hora, numero, opcao, primeiraVez ? "Sim" : "Não"]];
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: "160SnALnu-7g6_1EUCh9mf6vLuh1-BY1mowFceTfgnyk",
+      range: "Acessos_Bot!A:E",
+      valueInputOption: "RAW",
+      resource: {
+        values: linha
+      },
+    });
+    console.log(`📥 Acesso registrado na planilha: ${numero} - Opção: ${opcao}`);
+  } catch (erro) {
+    console.error("❌ Erro ao registrar acesso na planilha:", erro.message || erro);
+  }
+}
+
 // Inicialização do servidor
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
