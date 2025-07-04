@@ -1198,18 +1198,63 @@ async function dispararComunicadoGeralFila() {
 }
 
 
+
 // ================================================================
-// INTEGRAÇÃO COM PLANILHA DE ACESSOS (GOOGLE SHEETS)
+// SISTEMA DE MÉTRICAS E ANALYTICS DO BOT (com integração Sheets)
 // ================================================================
 
-/**
- * Registra um acesso na planilha do Google Sheets
- * Colunas: Data | Hora | Número | Opção | Primeira Vez
- * @param {string} numero 
- * @param {string} opcao 
- * @param {boolean} primeiraVez 
- */
-async function registrarAcessoNaPlanilha(numero, opcao = "menu", primeiraVez = false) {
+let metricas = {
+  usuariosUnicos: new Set(),
+  totalMensagensRecebidas: 0,
+  totalMensagensEnviadas: 0,
+  acessosPorOpcao: {},
+  acessosPorDia: {},
+  primeiroAcesso: {},
+  ultimoAcesso: {},
+  historico: []
+};
+
+// Registra acesso do usuário e salva também na planilha
+async function registrarAcessoUsuario(numero, opcaoEscolhida = null) {
+  const agora = new Date();
+  const hoje = agora.toISOString().split('T')[0];
+  const horario = agora.toISOString();
+
+  const usuarioExistente = metricas.usuariosUnicos.has(numero);
+  metricas.usuariosUnicos.add(numero);
+
+  if (!metricas.primeiroAcesso[numero]) {
+    metricas.primeiroAcesso[numero] = horario;
+  }
+  metricas.ultimoAcesso[numero] = horario;
+
+  if (!metricas.acessosPorDia[hoje]) {
+    metricas.acessosPorDia[hoje] = { usuarios: new Set(), total: 0 };
+  }
+  metricas.acessosPorDia[hoje].usuarios.add(numero);
+  metricas.acessosPorDia[hoje].total++;
+
+  if (opcaoEscolhida) {
+    if (!metricas.acessosPorOpcao[opcaoEscolhida]) {
+      metricas.acessosPorOpcao[opcaoEscolhida] = 0;
+    }
+    metricas.acessosPorOpcao[opcaoEscolhida]++;
+  }
+
+  metricas.historico.push({
+    numero,
+    horario,
+    opcao: opcaoEscolhida,
+    primeiroAcesso: !usuarioExistente
+  });
+
+  if (metricas.historico.length > 1000) {
+    metricas.historico = metricas.historico.slice(-1000);
+  }
+
+  console.log(`📊 Acesso registrado: ${numero} - ${opcaoEscolhida || 'Menu'} - ${usuarioExistente ? 'Retorno' : 'Novo usuário'}`);
+
+  // Envia também para a planilha
   try {
     const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
     const auth = new google.auth.GoogleAuth({
@@ -1219,24 +1264,23 @@ async function registrarAcessoNaPlanilha(numero, opcao = "menu", primeiraVez = f
     const client = await auth.getClient();
     const sheets = google.sheets({ version: "v4", auth: client });
 
-    const agora = new Date();
     const data = agora.toLocaleDateString("pt-BR");
     const hora = agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-    
-    const linha = [[data, hora, numero, opcao, primeiraVez ? "Sim" : "Não"]];
+    const linha = [[data, hora, numero, opcaoEscolhida || "menu", !usuarioExistente ? "Sim" : "Não"]];
+
     await sheets.spreadsheets.values.append({
       spreadsheetId: "160SnALnu-7g6_1EUCh9mf6vLuh1-BY1mowFceTfgnyk",
       range: "Acessos_Bot!A:E",
       valueInputOption: "RAW",
-      resource: {
-        values: linha
-      },
+      resource: { values: linha },
     });
-    console.log(`📥 Acesso registrado na planilha: ${numero} - Opção: ${opcao}`);
+
+    console.log(`📥 Planilha atualizada com o acesso: ${numero} - ${opcaoEscolhida}`);
   } catch (erro) {
-    console.error("❌ Erro ao registrar acesso na planilha:", erro.message || erro);
+    console.error("❌ Erro ao salvar acesso na planilha:", erro.message || erro);
   }
 }
+
 
 // Inicialização do servidor
 const PORT = process.env.PORT || 3000;
