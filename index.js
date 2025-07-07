@@ -1151,29 +1151,30 @@ async function dispararComunicadoGeralFila() {
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-    } );
+    });
     const client = await auth.getClient();
     const sheets = google.sheets({ version: "v4", auth: client });
 
-    const spreadsheetId = "1I988yRvGYfjhoqmFvdQbjO9qWzTB4T6yv0dDBxQ-oEg"; // <-- ID DA NOVA PLANILHA
-    const aba = "Cadastro_Oficial"; // <-- NOVA ABA
-    const range = `${aba}!G2:U`; // <-- NOVO RANGE: Coluna G para número, Coluna U para status
+    const numerosJaEnviados = new Set();
 
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range,
+    // Primeira planilha: Cadastro Oficial (coluna G, status na U)
+    const planilhaCadastroId = "1I988yRvGYfjhoqmFvdQbjO9qWzTB4T6yv0dDBxQ-oEg";
+    const rangeCadastro = "Cadastro_Oficial!G2:U";
+
+    const resCadastro = await sheets.spreadsheets.values.get({
+      spreadsheetId: planilhaCadastroId,
+      range: rangeCadastro,
     });
 
-    const rows = response.data.values || [];
+    const rowsCadastro = resCadastro.data.values || [];
+    console.log(`📄 [Cadastro_Oficial] Registros: ${rowsCadastro.length}`);
 
-    console.log(`🔎 Registros encontrados: ${rows.length}`);
+    for (let i = 0; i < rowsCadastro.length; i++) {
+      const numero = rowsCadastro[i][0];
+      const status = rowsCadastro[i][14];
 
-    for (let i = 0; i < rows.length; i++) {
-      const numero = rows[i][0];     // <-- Coluna G (primeira do range G2:U)
-      const status = rows[i][14];    // <-- Coluna U (décima quinta do range G2:U)
-
-      if (!numero || status === "Enviado") {
-        console.log(`⏭️ Pulando linha ${i + 2} (já enviado ou vazio)`);
+      if (!numero || status === "Enviado" || numerosJaEnviados.has(numero)) {
+        console.log(`⏭️ [Cadastro] Pulando linha ${i + 2}`);
         continue;
       }
 
@@ -1185,7 +1186,7 @@ async function dispararComunicadoGeralFila() {
             to: numero,
             type: "template",
             template: {
-              name: "eac_comunicado_geral_v2", // <-- NOVO NOME DO TEMPLATE
+              name: "eac_comunicado_geral_v2",
               language: { code: "pt_BR" }
             }
           },
@@ -1195,22 +1196,23 @@ async function dispararComunicadoGeralFila() {
               "Content-Type": "application/json"
             }
           }
-         );
+        );
 
-        console.log(`✅ Mensagem enviada para ${numero}`);
+        console.log(`✅ [Cadastro] Mensagem enviada para ${numero}`);
+        numerosJaEnviados.add(numero);
 
-        const updateRange = `${aba}!U${i + 2}`; // <-- ATUALIZA NA COLUNA U
+        const updateRange = `Cadastro_Oficial!U${i + 2}`;
         await sheets.spreadsheets.values.update({
-          spreadsheetId,
+          spreadsheetId: planilhaCadastroId,
           range: updateRange,
           valueInputOption: "RAW",
           resource: { values: [["Enviado"]] },
         });
       } catch (erroEnvio) {
-        console.error(`❌ Erro ao enviar para ${numero}:`, erroEnvio.message);
-        const updateRange = `${aba}!U${i + 2}`; // <-- ATUALIZA NA COLUNA U
+        console.error(`❌ [Cadastro] Erro ao enviar para ${numero}:`, erroEnvio.message);
+        const updateRange = `Cadastro_Oficial!U${i + 2}`;
         await sheets.spreadsheets.values.update({
-          spreadsheetId,
+          spreadsheetId: planilhaCadastroId,
           range: updateRange,
           valueInputOption: "RAW",
           resource: { values: [["Erro"]] },
@@ -1218,11 +1220,75 @@ async function dispararComunicadoGeralFila() {
       }
     }
 
-    console.log("📢 Disparo geral finalizado.");
+    // Segunda planilha: Encontreiros (coluna F, status na H)
+    const planilhaEncontreirosId = "1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4";
+    const rangeEncontreiros = "Fila_Envio!F2:H";
+
+    const resEncontreiros = await sheets.spreadsheets.values.get({
+      spreadsheetId: planilhaEncontreirosId,
+      range: rangeEncontreiros,
+    });
+
+    const rowsEncontreiros = resEncontreiros.data.values || [];
+    console.log(`📄 [Encontreiros] Registros: ${rowsEncontreiros.length}`);
+
+    for (let i = 0; i < rowsEncontreiros.length; i++) {
+      const numero = rowsEncontreiros[i][0];
+      const status = rowsEncontreiros[i][2];
+
+      if (!numero || status === "Enviado" || numerosJaEnviados.has(numero)) {
+        console.log(`⏭️ [Encontreiros] Pulando linha ${i + 2}`);
+        continue;
+      }
+
+      try {
+        await axios.post(
+          `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
+          {
+            messaging_product: "whatsapp",
+            to: numero,
+            type: "template",
+            template: {
+              name: "eac_comunicado_geral_v2",
+              language: { code: "pt_BR" }
+            }
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json"
+            }
+          }
+        );
+
+        console.log(`✅ [Encontreiros] Mensagem enviada para ${numero}`);
+        numerosJaEnviados.add(numero);
+
+        const updateRange = `Fila_Envio!H${i + 2}`;
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: planilhaEncontreirosId,
+          range: updateRange,
+          valueInputOption: "RAW",
+          resource: { values: [["Enviado"]] },
+        });
+      } catch (erroEnvio) {
+        console.error(`❌ [Encontreiros] Erro ao enviar para ${numero}:`, erroEnvio.message);
+        const updateRange = `Fila_Envio!H${i + 2}`;
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: planilhaEncontreirosId,
+          range: updateRange,
+          valueInputOption: "RAW",
+          resource: { values: [["Erro"]] },
+        });
+      }
+    }
+
+    console.log("📢 Disparo geral finalizado para as duas planilhas.");
   } catch (erro) {
     console.error("❌ Erro geral:", erro);
   }
 }
+
 
 
 
@@ -1308,6 +1374,28 @@ async function registrarAcessoUsuario(numero, opcaoEscolhida = null) {
     console.error("❌ Erro ao salvar acesso na planilha:", erro.message || erro);
   }
 }
+
+// ================================================================
+// ROTA HTML PARA REDIRECIONAMENTO DE E-MAIL (mailto:)
+// ================================================================
+app.get("/email-cantina", (req, res) => {
+  const mailtoLink = `mailto:eacporciuncula@gmail.com?subject=Quero%20ajudar%20na%20cantina&body=Olá,%20gostaria%20de%20colaborar%20no%20evento%20do%20dia%2027!`;
+
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+      <meta charset="UTF-8" />
+      <meta http-equiv="refresh" content="0; url=${mailtoLink}" />
+      <title>Redirecionando para E-mail</title>
+    </head>
+    <body>
+      <p>Você está sendo redirecionado para seu aplicativo de e-mail...</p>
+      <p>Se não funcionar automaticamente, <a href="${mailtoLink}">clique aqui para enviar o e-mail</a>.</p>
+    </body>
+    </html>
+  `);
+});
 
 
 
