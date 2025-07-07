@@ -491,7 +491,7 @@ app.post("/webhook", async (req, res) => {
       return res.sendStatus(200);
     }
 
-    if (respostas[textoRecebido]) {
+    /*if (respostas[textoRecebido]) {
     await enviarMensagem(numero, respostas[textoRecebido]);
     await registrarAcessoUsuario(numero, textoRecebido); // registra acesso normal
     } else {
@@ -505,9 +505,27 @@ app.post("/webhook", async (req, res) => {
     await enviarMensagemInterativa(numero, menuInterativo);
 
     await registrarAcessoUsuario(numero, "mensagem fora do menu"); // registra o tipo de fallback
+    }*/
+    if (respostas[textoRecebido]) {
+    await enviarMensagem(numero, respostas[textoRecebido]);
+    await registrarAcessoUsuario(numero, textoRecebido);
+    } else {
+    // Fallback inteligente com orientação + sugestão de ajuda humana
+    const mensagemFallback =
+      "🤖 Opa! Não entendi bem sua mensagem...\n\n" +
+      "🔎 Posso te ajudar com:\n" +
+      "• Inscrições (adolescentes ou equipe)\n" +
+      "• Eventos e mensagens do dia\n" +
+      "• Contato com a coordenação\n\n" +
+      "📌 *Se quiser falar com um dos nossos encontristas agora mesmo, digite menu,, ou veja abaixo, escolha a opção correspondente e nos mande um email com o assunto:*\n*quero falar com alguém*\n\n" +
+      "Enquanto isso, aqui está o menu novamente 👇";
+  
+    await enviarMensagem(numero, mensagemFallback);
+    const menuInterativo = montarMenuPrincipalInterativo();
+    await enviarMensagemInterativa(numero, menuInterativo);
+  
+    await registrarAcessoUsuario(numero, "mensagem fora do menu");
     }
-
-
     res.sendStatus(200);
   } else {
     res.sendStatus(404);
