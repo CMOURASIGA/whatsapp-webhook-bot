@@ -23,6 +23,13 @@ function getRandomMessage(messages) {
 }
 // --- FIM DA ADIÇÃO ---
 
+//função de saudação
+
+function ehSaudacao(texto) {
+  const saudacoes = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "e aí", "eai", "opa"];
+  return saudacoes.includes(texto.toLowerCase());
+}
+
 // Função para montar o menu principal interativo com botões
 
 // ================================================================
@@ -371,6 +378,12 @@ app.post("/webhook", async (req, res) => {
     }
 
     if (!textoRecebido) return res.sendStatus(200);
+
+    if (ehSaudacao(textoRecebido)) {
+      const menu = montarMenuPrincipalInterativo();
+      await enviarMensagemInterativa(numero, menu);
+      return res.sendStatus(200);
+    }
 
     const respostas = {
       "1": [
