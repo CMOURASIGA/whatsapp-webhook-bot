@@ -404,9 +404,41 @@ app.post("/webhook", async (req, res) => {
     }
 
     if (textoRecebido === "6") {
-      await enviarMensagem(numero, "📅 Confira as artes dos nossos próximos eventos:");
-      await enviarMensagem(numero, "https://drive.google.com/uc?export=view&id=1Gi3a4bDsmhG1BSG3p1dvl1l6McVngFih");
-      await enviarMensagem(numero, "Fique ligado(a) para não perder nada! 😉");
+      const saudacao = "📅 *Agenda de Eventos do EAC - Mês Atual*";
+      try {
+        const resposta = await axios.get(process.env.URL_APP_SCRIPT_EVENTOS);
+        const { status, links } = resposta.data;
+
+        if (status === "SEM_EVENTOS") {
+          await enviarMensagem(numero, "⚠️ Ainda não há eventos cadastrados para este mês.");
+        } else if (links) {
+          const imagens = Array.isArray(links) ? links : [links];
+          await enviarMensagem(numero, saudacao);
+          for (const link of imagens) {
+            await axios.post(
+              `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
+              {
+                messaging_product: "whatsapp",
+                to: numero,
+                type: "image",
+                image: { link },
+              },
+              {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  "Content-Type": "application/json",
+                },
+              }
+            );
+          }
+        } else {
+          await enviarMensagem(numero, "⚠️ Ocorreu um erro ao buscar os eventos.");
+        }
+      } catch (erro) {
+        console.error("Erro ao buscar eventos do mês:", erro);
+        await enviarMensagem(numero, "❌ Não conseguimos carregar a agenda agora. Tente novamente mais tarde.");
+      }
+
       return res.sendStatus(200);
     }
 
