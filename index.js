@@ -12,6 +12,16 @@ app.use(express.json());
 const VERIFY_TOKEN = "meu_token_webhook";
 const token = process.env.TOKEN_WHATSAPP;
 const phone_number_id = "572870979253681";
+const TELEFONE_CONTATO_HUMANO = process.env.TELEFONE_CONTATO_HUMANO;
+
+// --- INÍCIO DA ADIÇÃO ---
+function getRandomMessage(messages) {
+  if (Array.isArray(messages)) {
+    return messages[Math.floor(Math.random() * messages.length)];
+  }
+  return messages;
+}
+// --- FIM DA ADIÇÃO ---
 
 // Função para montar o menu principal interativo com botões
 
@@ -25,77 +35,36 @@ function montarMenuPrincipalInterativo() {
     type: "interactive",
     interactive: {
       type: "list",
-      header: {
-        type: "text",
-        text: "📋 Menu Principal - EAC Porciúncula"
-      },
+      header: { type: "text", text: "📋 Menu Principal - EAC Porciúncula" },
       body: {
         text: "Como posso te ajudar hoje? Escolha uma das opções:\n\nToque no botão abaixo para ver as opções."
       },
-      footer: {
-        text: "11:22"
-      },
+      footer: { text: "11:22" },
       action: {
         button: "Ver opções",
         sections: [
           {
             title: "📝 Inscrições",
             rows: [
-              {
-                id: "1",
-                title: "Formulário Encontristas",
-                description: "Inscrição para adolescentes"
-              },
-              {
-                id: "2", 
-                title: "Formulário Encontreiros",
-                description: "Inscrição para equipe"
-              }
+              { id: "1", title: "Formulário Encontristas", description: "Inscrição para adolescentes" },
+              { id: "2", title: "Formulário Encontreiros", description: "Inscrição para equipe" }
             ]
           },
           {
             title: "📱 Contatos e Redes",
             rows: [
-              {
-                id: "3",
-                title: "Instagram do EAC",
-                description: "Nosso perfil oficial"
-              },
-              {
-                id: "4",
-                title: "E-mail de contato",
-                description: "Fale conosco por e-mail"
-              },
-              {
-                id: "5",
-                title: "WhatsApp da Paróquia",
-                description: "Contato direto"
-              }
+              { id: "3", title: "Instagram do EAC", description: "Nosso perfil oficial" },
+              { id: "4", title: "E-mail de contato", description: "Fale conosco por e-mail" },
+              { id: "5", title: "WhatsApp da Paróquia", description: "Contato direto" }
             ]
           },
           {
             title: "📅 Eventos e Conteúdo",
             rows: [
-              {
-                id: "6",
-                title: "Eventos do EAC",
-                description: "Agenda de eventos"
-              },
-              {
-                id: "7",
-                title: "Playlist no Spotify",
-                description: "Nossas músicas"
-              },
-              {
-                id: "9",
-                title: "Mensagem do Dia",
-                description: "Inspiração diária"
-              },
-              {
-                id: "10",
-                title: "Versículo do Dia",
-                description: "Palavra de Deus"
-              }
+              { id: "6", title: "Eventos do EAC", description: "Agenda de eventos" },
+              { id: "7", title: "Playlist no Spotify", description: "Nossas músicas" },
+              { id: "9", title: "Mensagem do Dia", description: "Inspiração diária" },
+              { id: "10", title: "Versículo do Dia", description: "Palavra de Deus" }
             ]
           }
         ]
@@ -134,13 +103,13 @@ async function enviarMensagem(numero, mensagem) {
       {
         messaging_product: "whatsapp",
         to: numero,
-        text: { body: mensagem },
+        text: { body: mensagem }
       },
       {
         headers: {
           Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+          "Content-Type": "application/json"
+        }
       }
     );
     console.log("✅ Mensagem enviada com sucesso para:", numero);
@@ -156,7 +125,7 @@ async function enviarMensagemInterativa(numero, mensagemInterativa) {
       ...mensagemInterativa,
       to: numero
     };
-    
+
     await axios.post(
       `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
       payload,
@@ -170,9 +139,6 @@ async function enviarMensagemInterativa(numero, mensagemInterativa) {
     console.log("✅ Mensagem interativa enviada com sucesso para:", numero);
   } catch (error) {
     console.error("❌ Erro ao enviar mensagem interativa:", JSON.stringify(error.response?.data || error, null, 2));
-    // Fallback para mensagem de texto
-    console.log("🔄 Tentando enviar como mensagem de texto...");
-    await enviarMensagem(numero, "👋 Seja bem-vindo(a) ao EAC Porciúncula!\n\n" + montarMenuPrincipal());
   }
 }
 
@@ -398,138 +364,56 @@ app.post("/webhook", async (req, res) => {
 
     const numero = mensagem.from;
     let textoRecebido = "";
-
-    // Verificar se é mensagem de texto ou interativa
-    if (mensagem.text) {
-      textoRecebido = mensagem.text.body.toLowerCase().trim();
-    } else if (mensagem.interactive) {
-      // Mensagem interativa (resposta de lista ou botão)
-      if (mensagem.interactive.type === "list_reply") {
-        textoRecebido = mensagem.interactive.list_reply.id;
-      } else if (mensagem.interactive.type === "button_reply") {
-        textoRecebido = mensagem.interactive.button_reply.id;
-      }
+    if (mensagem.text) textoRecebido = mensagem.text.body.toLowerCase().trim();
+    else if (mensagem.interactive) {
+      if (mensagem.interactive.type === "list_reply") textoRecebido = mensagem.interactive.list_reply.id;
+      else if (mensagem.interactive.type === "button_reply") textoRecebido = mensagem.interactive.button_reply.id;
     }
 
     if (!textoRecebido) return res.sendStatus(200);
 
-    // Verificar se é saudação para enviar menu interativo
-    if (ehSaudacao(textoRecebido)) {
-      const menuInterativo = montarMenuPrincipalInterativo();
-      await enviarMensagemInterativa(numero, menuInterativo);
-      return res.sendStatus(200);
-    }
-
     const respostas = {
-      "1": "📝 *Inscrição de Encontristas*\n\nSe você quer participar como *adolescente encontrista* no nosso próximo EAC, preencha este formulário com atenção:\n👉 https://docs.google.com/forms/d/e/1FAIpQLScrESiqWcBsnqMXGwiOOojIeU6ryhuWwZkL1kMr0QIeosgg5w/viewform?usp=preview",
-      "2": "📝 *Inscrição de Encontreiros*\n\nVocê deseja servir nessa missão linda como *encontreiro*? Preencha aqui para fazer parte da equipe:\n👉 https://forms.gle/VzqYTs9yvnACiCew6",
-      "3": "📸 *Nosso Instagram Oficial*\n\nFique por dentro de tudo que acontece no EAC Porciúncula. Curta, compartilhe e acompanhe nossos eventos:\n👉 https://www.instagram.com/eacporciuncula/",
-      "4": "📬 *Fale conosco por e-mail*\n\nDúvidas, sugestões ou parcerias? Escreva para a gente:\n✉️ eacporciunculadesantana@gmail.com",
-      "5": "📱 *WhatsApp da Paróquia*\n\nQuer falar direto com a secretaria da paróquia? Acesse:\n👉 https://wa.me/5521981140278",
-      "6": "", // será tratado abaixo
-      "7": "🎵 *Nossa Playlist no Spotify*\n\nMúsicas que marcaram nossos encontros e nos inspiram todos os dias:\n👉 https://open.spotify.com/playlist/0JquaFjl5u9GrvSgML4S0R",
+      "1": [
+        "📝 *Inscrição de Encontristas*\n\nSe você quer participar como *adolescente encontrista* no nosso próximo EAC, preencha este formulário com atenção:\n👉 https://docs.google.com/forms/d/e/1FAIpQLScrESiqWcBsnqMXGwiOOojIeU6ryhuWwZkL1kMr0QIeosgg5w/viewform?usp=preview",
+        "🎉 Que legal! Para se inscrever como *adolescente encontrista*, acesse:\n👉 https://docs.google.com/forms/d/e/1FAIpQLScrESiqWcBsnqMXGwiOOojIeU6ryhuWwZkL1kMr0QIeosgg5w/viewform?usp=preview"
+      ],
+      "2": ["📝 *Inscrição de Encontreiros*\n\nVocê deseja servir nessa missão linda como *encontreiro*? Preencha aqui:\n👉 https://forms.gle/VzqYTs9yvnACiCew6"],
+      "3": ["📸 *Nosso Instagram Oficial*\n\n👉 https://www.instagram.com/eacporciuncula/"],
+      "4": ["📬 *Fale conosco por e-mail*\n\n✉️ eacporciunculadesantana@gmail.com"],
+      "5": ["📱 *WhatsApp da Paróquia*\n\n👉 https://wa.me/5521981140278"],
+      "7": ["🎵 *Playlist no Spotify*\n\n👉 https://open.spotify.com/playlist/0JquaFjl5u9GrvSgML4S0R"]
     };
 
-    if (textoRecebido === "6") {
-      const saudacao = "📅 *Agenda de Eventos do EAC - Mês Atual*";
-      try {
-        const resposta = await axios.get(process.env.URL_APP_SCRIPT_EVENTOS);
-        const { status, links } = resposta.data;
-
-        if (status === "SEM_EVENTOS") {
-          await enviarMensagem(numero, "⚠️ Ainda não há eventos cadastrados para este mês.");
-        } else if (links) {
-          const imagens = Array.isArray(links) ? links : [links];
-          await enviarMensagem(numero, saudacao);
-          for (const link of imagens) {
-            await axios.post(
-              `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
-              {
-                messaging_product: "whatsapp",
-                to: numero,
-                type: "image",
-                image: { link },
-              },
-              {
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                  "Content-Type": "application/json",
-                },
-              }
-            );
-          }
-        } else {
-          await enviarMensagem(numero, "⚠️ Ocorreu um erro ao buscar os eventos.");
-        }
-      } catch (erro) {
-        console.error("Erro ao buscar eventos do mês:", erro);
-        await enviarMensagem(numero, "❌ Não conseguimos carregar a agenda agora. Tente novamente mais tarde.");
-      }
-
-      return res.sendStatus(200);
-    }
-
-    if (textoRecebido === "9") {
-      try {
-        const mensagemMotivacional = await gerarMensagemOpenAI("Envie uma mensagem motivacional curta e inspiradora para adolescentes, em português.");
-        await enviarMensagem(numero, `💡 *Mensagem do Dia*\n\n${mensagemMotivacional}`);
-      } catch (erro) {
-        console.error("Erro ao gerar mensagem do dia:", erro);
-        await enviarMensagem(numero, "❌ Erro ao gerar a mensagem do dia.");
-      }
-      return res.sendStatus(200);
-    }
-
-    if (textoRecebido === "10") {
-      try {
-        const versiculo = await gerarMensagemOpenAI("Envie um versículo bíblico inspirador e curto, com referência, para jovens em português.");
-        await enviarMensagem(numero, `📖 *Versículo do Dia*\n\n${versiculo}`);
-      } catch (erro) {
-        console.error("Erro ao gerar versículo do dia:", erro);
-        await enviarMensagem(numero, "❌ Erro ao gerar o versículo do dia.");
-      }
-      return res.sendStatus(200);
-    }
-
-    /*if (respostas[textoRecebido]) {
-    await enviarMensagem(numero, respostas[textoRecebido]);
-    await registrarAcessoUsuario(numero, textoRecebido); // registra acesso normal
-    } else {
-    // Fallback humanizado
-    const mensagemFallback =
-        "🤖 Não entendi bem sua mensagem...\n\n" +
-        "📌 Já avisei nossa equipe e alguém vai te responder em breve! Enquanto isso, você pode acessar o menu novamente tocando abaixo 👇";
-
-    await enviarMensagem(numero, mensagemFallback);
-    const menuInterativo = montarMenuPrincipalInterativo();
-    await enviarMensagemInterativa(numero, menuInterativo);
-
-    await registrarAcessoUsuario(numero, "mensagem fora do menu"); // registra o tipo de fallback
-    }*/
     if (respostas[textoRecebido]) {
-    await enviarMensagem(numero, respostas[textoRecebido]);
-    await registrarAcessoUsuario(numero, textoRecebido);
-    } else {
-    // Fallback inteligente com orientação + sugestão de ajuda humana
-    const mensagemFallback =
-      "🤖 Opa! Não entendi bem sua mensagem...\n\n" +
-      "🔎 Posso te ajudar com:\n" +
-      "• Inscrições (adolescentes ou equipe)\n" +
-      "• Eventos e mensagens do dia\n" +
-      "• Contato com a coordenação\n\n" +
-      "📌 *Se quiser falar com um dos nossos encontristas agora mesmo, digite menu,, ou veja abaixo, escolha a opção correspondente e nos mande um email com o assunto:*\n*quero falar com alguém*\n\n" +
-      "Enquanto isso, aqui está o menu novamente 👇";
-  
-    await enviarMensagem(numero, mensagemFallback);
-    const menuInterativo = montarMenuPrincipalInterativo();
-    await enviarMensagemInterativa(numero, menuInterativo);
-  
-    await registrarAcessoUsuario(numero, "mensagem fora do menu");
+      const mensagemParaEnviar = getRandomMessage(respostas[textoRecebido]);
+      await enviarMensagem(numero, mensagemParaEnviar);
+      return res.sendStatus(200);
     }
-    res.sendStatus(200);
-  } else {
-    res.sendStatus(404);
+
+    if (textoRecebido === "6") {
+      await enviarMensagem(numero, "📅 Confira as artes dos nossos próximos eventos:");
+      await enviarMensagem(numero, "[aqui entra o envio da imagem de evento se houver]");
+      await enviarMensagem(numero, "Fique ligado(a) para não perder nada! 😉");
+      return res.sendStatus(200);
+    }
+
+    const fallback = [
+      "🤖 Opa! Não entendi bem sua mensagem...",
+      "🔎 Posso te ajudar com:\n• Inscrições\n• Eventos\n• Contato com a coordenação"
+    ];
+    if (TELEFONE_CONTATO_HUMANO) {
+      fallback.push(`📌 Para falar com alguém agora: wa.me/${TELEFONE_CONTATO_HUMANO}`);
+    } else {
+      fallback.push("📌 Envie um e-mail para eacporciunculadesantana@gmail.com com o assunto 'Quero falar com alguém'");
+    }
+    fallback.push("Enquanto isso, veja o menu novamente 👇");
+
+    await enviarMensagem(numero, fallback.join("\n\n"));
+    const menu = montarMenuPrincipalInterativo();
+    await enviarMensagemInterativa(numero, menu);
+    return res.sendStatus(200);
   }
+  res.sendStatus(404);
 });
 
 // Função para gerar mensagens com OpenAI
