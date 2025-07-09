@@ -405,7 +405,7 @@ app.post("/webhook", async (req, res) => {
 
     if (textoRecebido === "6") {
       await enviarMensagem(numero, "📅 Confira as artes dos nossos próximos eventos:");
-      await enviarMensagem(numero, "[aqui entra o envio da imagem de evento se houver]");
+      await enviarMensagem(numero, "https://drive.google.com/uc?export=view&id=1Gi3a4bDsmhG1BSG3p1dvl1l6McVngFih");
       await enviarMensagem(numero, "Fique ligado(a) para não perder nada! 😉");
       return res.sendStatus(200);
     }
