@@ -394,7 +394,7 @@ app.post("/webhook", async (req, res) => {
       "3": ["📸 *Nosso Instagram Oficial*\n\n👉 https://www.instagram.com/eacporciuncula/"],
       "4": ["📬 *Fale conosco por e-mail*\n\n✉️ eacporciunculadesantana@gmail.com"],
       "5": ["📱 *WhatsApp da Paróquia*\n\n👉 https://wa.me/5521981140278"],
-      "7": ["🎵 *Playlist no Spotify*\n\n👉 https://open.spotify.com/playlist/0JquaFjl5u9GrvSgML4S0R"]
+      "7": ["🎵 *Playlist no Spotify*\n\n👉 https://open.spotify.com/playlist/1TC8C71sbCZM43ghR1giWH?si=zyXIhEfvSWSKG21GTIoazA&pi=FxazNzY4TJWns"]
     };
 
     if (respostas[textoRecebido]) {
