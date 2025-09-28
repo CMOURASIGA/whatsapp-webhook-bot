@@ -1087,8 +1087,10 @@ async function dispararComunicadoGeralFila() {
     const numerosJaEnviados = new Set();
 
     // Primeira planilha: Cadastro Oficial (coluna G, status na U)
-    const planilhaCadastroId = "1I988yRvGYfjhoqmFvdQbjO9qWzTB4T6yv0dDBxQ-oEg";
+    //const planilhaCadastroId = "1I988yRvGYfjhoqmFvdQbjO9qWzTB4T6yv0dDBxQ-oEg";
+    const planilhaCadastroId = "13QUYrH1iRV1TwyVQhtCHjXy77XxB9Eu7R_wsCZIJDwk";
     const rangeCadastro = "Cadastro_Oficial!G2:U";
+    
 
     const resCadastro = await sheets.spreadsheets.values.get({
       spreadsheetId: planilhaCadastroId,
