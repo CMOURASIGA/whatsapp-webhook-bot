@@ -9,33 +9,98 @@ const cron = require("node-cron");
 const app = express();
 app.use(express.json());
 
-const VERIFY_TOKEN = "meu_token_webhook";
-const token = process.env.TOKEN_WHATSAPP;
-const phone_number_id = "572870979253681";
-const TELEFONE_CONTATO_HUMANO = process.env.TELEFONE_CONTATO_HUMANO;
+// ---------------------- .ENV SUGERIDO ----------------------
+// PORT=3000
+// VERIFY_TOKEN=seu_token_meta
+// TOKEN_WHATSAPP=EAAB...
+// WHATSAPP_PHONE_NUMBER_ID=572870979253681
+// OPENAI_API_KEY=sk-...
+// GOOGLE_CREDENTIALS={"type":"service_account",...}
+// CHAVE_DISPARO=chave_super_secreta
+// TELEFONE_CONTATO_HUMANO=55219xxxxxxx
+// URL_APP_SCRIPT_EVENTOS=https://script.googleusercontent.com/...
+// SPREADSHEET_ID_EVENTOS=1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8
+// SHEET_CADASTRO_ID=13QUYrH1iRV1TwyVQhtCHjXy77XxB9Eu7R_wsCZIJDwk
+// SHEET_CADASTRO_TAB=Cadastro_Oficial
+// SHEET_ENCONTREIROS_ID=1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4
+// SHEET_EVENTOS_ID=1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8
+// SHEET_ACESSOS_ID=160SnALnu-7g6_1EUCh9mf6vLuh1-BY1mowFceTfgnyk
+// TEMPLATE_LEMBRETE=eac_lembrete_v1
+// TEMPLATE_BOASVINDAS=eac_boasvindas_v1
+// TEMPLATE_CONFIRMACAO=eac_confirmar_participacao_v1
+// TEMPLATE_AGRADECIMENTO=eac_agradecimento_inscricao_v1
+// TEMPLATE_COMUNICADO=eac_comunicado_geral_v2
+// TEMPLATE_PRAZO_RESPOSTA_PADRAO=
+// TEMPLATE_HORA_EVENTO_PADRAO=09:00
+// ------------------------------------------------------------
 
-// --- INÍCIO DA ADIÇÃO ---
+const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "meu_token_webhook";
+const token = process.env.TOKEN_WHATSAPP;
+const phone_number_id = process.env.WHATSAPP_PHONE_NUMBER_ID || "572870979253681";
+const TELEFONE_CONTATO_HUMANO = process.env.TELEFONE_CONTATO_HUMANO || "";
+const URL_APP_SCRIPT_EVENTOS = process.env.URL_APP_SCRIPT_EVENTOS || "";
+const SPREADSHEET_ID_EVENTOS = process.env.SPREADSHEET_ID_EVENTOS || process.env.SHEET_EVENTOS_ID || "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8";
+const SHEET_CADASTRO_ID = process.env.SHEET_CADASTRO_ID || "13QUYrH1iRV1TwyVQhtCHjXy77XxB9Eu7R_wsCZIJDwk";
+const SHEET_CADASTRO_TAB_ENV = process.env.SHEET_CADASTRO_TAB || ""; // pode ser "Cadastro_Oficial" ou "Cadastro Oficial"
+const SHEET_ENCONTREIROS_ID = process.env.SHEET_ENCONTREIROS_ID || "1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4";
+const SHEET_ACESSOS_ID = process.env.SHEET_ACESSOS_ID || "160SnALnu-7g6_1EUCh9mf6vLuh1-BY1mowFceTfgnyk";
+const CHAVE_DISPARO = process.env.CHAVE_DISPARO || "EACP2024";
+
+const TEMPLATE_LEMBRETE = process.env.TEMPLATE_LEMBRETE || "eac_lembrete_v1";
+const TEMPLATE_BOASVINDAS = process.env.TEMPLATE_BOASVINDAS || "eac_boasvindas_v1";
+const TEMPLATE_CONFIRMACAO = process.env.TEMPLATE_CONFIRMACAO || "eac_confirmar_participacao_v1";
+const TEMPLATE_AGRADECIMENTO = process.env.TEMPLATE_AGRADECIMENTO || "eac_agradecimento_inscricao_v1";
+const TEMPLATE_COMUNICADO = process.env.TEMPLATE_COMUNICADO || "eac_comunicado_geral_v2";
+const TEMPLATE_PRAZO_RESPOSTA_PADRAO = process.env.TEMPLATE_PRAZO_RESPOSTA_PADRAO || "";
+const TEMPLATE_HORA_EVENTO_PADRAO = process.env.TEMPLATE_HORA_EVENTO_PADRAO || "09:00";
+
+// ================================================================
+// HELPERS
+// ================================================================
 function getRandomMessage(messages) {
   if (Array.isArray(messages)) {
     return messages[Math.floor(Math.random() * messages.length)];
   }
   return messages;
 }
-// --- FIM DA ADIÇÃO ---
 
-//função de saudação
-
-function ehSaudacao(texto) {
-  const saudacoes = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "e aí", "eai", "opa"];
-  return saudacoes.includes(texto.toLowerCase());
+// Normaliza string (remove acentos) e coloca em minúsculo
+function norm(s = "") {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "");
 }
 
-// Função para montar o menu principal interativo com botões
+// Saudação unificada
+function ehSaudacao(textoRaw) {
+  const texto = norm(textoRaw || "");
+  const saudacoes = ["oi", "ola", "olá", "bom dia", "boa tarde", "boa noite", "e ai", "eai", "opa", "menu"];
+  return saudacoes.some(s => texto.includes(s));
+}
+
+// Valida número de WhatsApp (bem simples: só dígitos, 11 a 15)
+function numeroValido(telefone) {
+  if (!telefone) return false;
+  const digitos = (telefone + "").replace(/\D/g, "");
+  return /^\d{11,15}$/.test(digitos);
+}
+
+// Resolve dinamicamente a aba do Cadastro Oficial
+async function descobrirAbaCadastro(sheets, spreadsheetId) {
+  const preferidas = SHEET_CADASTRO_TAB_ENV ? [SHEET_CADASTRO_TAB_ENV] : ["Cadastro_Oficial", "Cadastro Oficial"];
+  const meta = await sheets.spreadsheets.get({ spreadsheetId });
+  const abas = new Set((meta.data.sheets || []).map(s => s.properties?.title));
+  const escolhida = preferidas.find(n => abas.has(n));
+  if (!escolhida) throw new Error("Aba de Cadastro Oficial não encontrada. Abas existentes: " + [...abas].join(", "));
+  return escolhida;
+}
 
 // ================================================================
 // SISTEMA DE MENUS INTERATIVOS
 // ================================================================
 function montarMenuPrincipalInterativo() {
+  const footerTime = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   return {
     messaging_product: "whatsapp",
     recipient_type: "individual",
@@ -46,7 +111,7 @@ function montarMenuPrincipalInterativo() {
       body: {
         text: "Como posso te ajudar hoje? Escolha uma das opções:\n\nToque no botão abaixo para ver as opções."
       },
-      footer: { text: "11:22" },
+      footer: { text: footerTime },
       action: {
         button: "Ver opções",
         sections: [
@@ -80,7 +145,7 @@ function montarMenuPrincipalInterativo() {
   };
 }
 
-// Função para montar o menu principal em texto (fallback)
+// Fallback em texto
 function montarMenuPrincipal() {
   return (
     "📋 *Menu Principal - EAC Porciúncula* 📋\n\n" +
@@ -91,20 +156,21 @@ function montarMenuPrincipal() {
     "5 - 📱 WhatsApp da Paróquia\n" +
     "6 - 📅 Eventos do EAC\n" +
     "7 - 🎵 Playlist no Spotify\n" +
-    //"8 - 💬 Falar com um Encontreiro\n" +
     "9 - 💡 Mensagem do Dia\n" +
     "10 - 📖 Versículo do Dia\n\n" +
     "Digite o número correspondente à opção desejada. 👇"
   );
 }
 
-// Enviar mensagem para número via WhatsApp Cloud API
-
 // ================================================================
 // SISTEMA DE ENVIO DE MENSAGENS (Texto e Interativo)
 // ================================================================
 async function enviarMensagem(numero, mensagem) {
   try {
+    if (!numeroValido(numero)) {
+      console.warn("⚠️ Número inválido, pulando envio:", numero);
+      return;
+    }
     await axios.post(
       `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
       {
@@ -125,14 +191,14 @@ async function enviarMensagem(numero, mensagem) {
   }
 }
 
-// Enviar mensagem interativa para número via WhatsApp Cloud API
 async function enviarMensagemInterativa(numero, mensagemInterativa) {
   try {
-    const payload = {
-      ...mensagemInterativa,
-      to: numero
-    };
+    if (!numeroValido(numero)) {
+      console.warn("⚠️ Número inválido, pulando envio interativo:", numero);
+      return;
+    }
 
+    const payload = { ...mensagemInterativa, to: numero };
     await axios.post(
       `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
       payload,
@@ -149,38 +215,25 @@ async function enviarMensagemInterativa(numero, mensagemInterativa) {
   }
 }
 
-// Função para envio de template de lembrete de evento
-
 // ================================================================
 // ENVIO DE TEMPLATES WHATSAPP BUSINESS
 // ================================================================
-async function enviarTemplateLembreteEvento(numero, eventoNome, dataEvento) {
+async function enviarTemplateLembreteEvento(numero, eventoNome, dataEvento, prazoRespostaOpt, horaEventoOpt) {
   try {
-    // Validação dos parâmetros obrigatórios
-    if (!numero || !eventoNome || !dataEvento) {
-      console.error(`❌ Parâmetros inválidos. Dados recebidos: numero=${numero}, eventoNome=${eventoNome}, dataEvento=${dataEvento}`);
+    if (!numeroValido(numero)) {
+      console.warn("⚠️ Número inválido no lembrete:", numero);
       return;
     }
 
-    // Log antes do envio
-    console.log(`📨 Preparando envio para: ${numero}`);
-    console.log(`📅 Evento: ${eventoNome} | Data: ${dataEvento}`);
-    console.log(`Debug: Parâmetros do template - eventoNome: ${eventoNome}, dataEvento: ${dataEvento}`);
-    console.log(`Debug: Objeto template completo: ${JSON.stringify({
-          name: "eac_lembrete_v1", // <-- NOME DO TEMPLATE ATUALIZADO AQUI
-          language: { code: "pt_BR" },
-          components: [
-            {
-              type: "body",
-              parameters: [
-                { type: "text", text: eventoNome },                             // Mapeia para {{evento_nome}}
-                { type: "text", text: "15/06/2025" },                           // Mapeia para {{prazo_resposta}}
-                { type: "text", text: dataEvento },                             // Mapeia para {{data_evento}}
-                { type: "text", text: "09:00 às 18:00" }                       // Mapeia para {{hora_evento}}
-              ]
-            }
-          ]
-        }, null, 2)}`);
+    if (!eventoNome || !dataEvento) {
+      console.error(`❌ Parâmetros inválidos no lembrete. numero=${numero}, eventoNome=${eventoNome}, dataEvento=${dataEvento}`);
+      return;
+    }
+
+    const prazoResposta = prazoRespostaOpt ?? TEMPLATE_PRAZO_RESPOSTA_PADRAO;
+    const horaEvento = horaEventoOpt ?? TEMPLATE_HORA_EVENTO_PADRAO;
+
+    console.log(`📨 Enviando lembrete (${TEMPLATE_LEMBRETE}) para: ${numero} | ${eventoNome} em ${dataEvento} ${horaEvento}`);
 
     await axios.post(
       `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
@@ -189,16 +242,16 @@ async function enviarTemplateLembreteEvento(numero, eventoNome, dataEvento) {
         to: numero,
         type: "template",
         template: {
-          name: "eac_lembrete_v1", // <-- NOME DO TEMPLATE ATUALIZADO AQUI
+          name: TEMPLATE_LEMBRETE,
           language: { code: "pt_BR" },
           components: [
             {
               type: "body",
               parameters: [
-                { type: "text", text: eventoNome },
-                { type: "text", text: "15/06/2025" },
-                { type: "text", text: dataEvento },
-                { type: "text", text: "09:00" }
+                { type: "text", text: eventoNome },           // {{evento_nome}}
+                { type: "text", text: prazoResposta },         // {{prazo_resposta}} (se vazio, o Meta ignora se template permitir)
+                { type: "text", text: dataEvento },            // {{data_evento}}
+                { type: "text", text: horaEvento }             // {{hora_evento}}
               ]
             }
           ]
@@ -210,15 +263,13 @@ async function enviarTemplateLembreteEvento(numero, eventoNome, dataEvento) {
           "Content-Type": "application/json"
         }
       }
-     );
+    );
 
-    console.log(`✅ Template enviado com sucesso para: ${numero}`);
+    console.log(`✅ Template de lembrete enviado com sucesso para: ${numero}`);
   } catch (error) {
-    console.error(`❌ Erro ao enviar template para o número ${numero}:`, JSON.stringify(error.response?.data || error, null, 2));
+    console.error(`❌ Erro ao enviar template de lembrete para ${numero}:`, JSON.stringify(error.response?.data || error, null, 2));
   }
 }
-
-// Atualiza contatos pendentes para ativo
 
 // ================================================================
 // ATUALIZAÇÃO DE STATUS DOS CONTATOS NA PLANILHA
@@ -247,8 +298,8 @@ async function reativarContatosPendentes() {
       });
     };
 
-    await atualizarPendentes("1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8");
-    await atualizarPendentes("1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4");
+    await atualizarPendentes(SHEET_EVENTOS_ID);
+    await atualizarPendentes(SHEET_ENCONTREIROS_ID);
 
     console.log("🔄 Contatos com status 'Pendente' atualizados para 'Ativo'.");
   } catch (error) {
@@ -256,16 +307,8 @@ async function reativarContatosPendentes() {
   }
 }
 
-// Verificação e resposta automática a saudações
-function ehSaudacao(texto) {
-  const saudacoes = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "menu"];
-  return saudacoes.some(s => texto.includes(s));
-}
-
-// Verifica eventos da aba 'comunicados' para enviar lembrete
-
 // ================================================================
-// LÓGICA DE VERIFICAÇÃO DE EVENTOS PARA DISPAROS
+// LÓGICA DE VERIFICAÇÃO DE EVENTOS PARA DISPAROS (7 dias)
 // ================================================================
 async function verificarEventosParaLembrete() {
   try {
@@ -276,79 +319,66 @@ async function verificarEventosParaLembrete() {
     });
 
     const sheets = google.sheets({ version: "v4", auth: await auth.getClient() });
-    const spreadsheetIdEventos = "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8";
+    const spreadsheetIdEventos = SPREADSHEET_ID_EVENTOS;
     const rangeEventos = "comunicados!A2:G";
     const response = await sheets.spreadsheets.values.get({ spreadsheetId: spreadsheetIdEventos, range: rangeEventos });
     const rows = response.data.values;
     if (!rows) return;
 
     const hoje = new Date();
-    const seteDiasDepois = new Date(hoje);
-    seteDiasDepois.setDate(hoje.getDate() + 60);
+    hoje.setHours(0,0,0,0);
+    const limite = new Date(hoje);
+    limite.setDate(hoje.getDate() + 7);
 
-    const eventosDaSemana = [];
+    const eventosProximos = [];
 
     for (const row of rows) {
-      const valorData = row[6]; // Coluna G da planilha
+      const valorData = row[6]; // Coluna G
       if (!valorData) continue;
 
       let dataEvento;
-      if (/^\d{2}\/\d{2}\/\d{4}$/.test(valorData)) { 
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test((valorData+"").trim())) {
         const [dia, mes, ano] = valorData.split("/");
         dataEvento = new Date(`${ano}-${mes}-${dia}`);
       } else {
         dataEvento = new Date(valorData);
       }
 
-      if (!isNaN(dataEvento.getTime()) && dataEvento >= hoje && dataEvento <= seteDiasDepois) {
+      if (!isNaN(dataEvento.getTime()) && dataEvento >= hoje && dataEvento <= limite) {
         const titulo = row[1] || "(Sem título)";
-        const dataFormatada = `${dataEvento.getDate().toString().padStart(2, '0')}/${(dataEvento.getMonth() + 1).toString().padStart(2, '0')}`;
-        eventosDaSemana.push({
-          nome: titulo,
-          data: dataFormatada
-        });
+        const dataFormatada = `${dataEvento.getDate().toString().padStart(2, '0')}/${(dataEvento.getMonth() + 1).toString().padStart(2, '0')}/${dataEvento.getFullYear()}`;
+        eventosProximos.push({ nome: titulo, data: dataFormatada });
       }
     }
 
-    const planilhas = [
-      "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8",
-      "1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4"
-    ];
+    const planilhas = [SHEET_EVENTOS_ID, SHEET_ENCONTREIROS_ID];
 
     for (const spreadsheetId of planilhas) {
-      const rangeFila = "Fila_Envio!F2:G";
+      const rangeFila = "Fila_Envio!F2:H";
       const fila = await sheets.spreadsheets.values.get({ spreadsheetId, range: rangeFila });
       const contatos = fila.data.values || [];
 
-      const numeros = contatos
-        .map(([numero, status], idx) => ({ numero, status, idx }))
-        .filter(c => c.status === "Ativo");
+      const registros = contatos.map((row, idx) => ({ numero: row[0], status: row[2], idx }));
+      const ativos = registros.filter(c => c.status === "Ativo" && numeroValido(c.numero));
 
-      console.log("📨 Contatos ativos:", numeros.length);
-      const updates = contatos.map(([numero, status]) => [status]);
+      console.log("📨 Contatos ativos:", ativos.length);
+      const updates = contatos.map(r => [r?.[2] ?? ""]); // manter H original
 
-      if (eventosDaSemana.length > 0) {
-        const saudacao = "🌞 Bom dia! Aqui é o EAC Porciúncula trazendo um resumo dos próximos eventos:\n";
-        const cabecalho = `📅 *Agenda da Semana (${hoje.toLocaleDateString()} a ${seteDiasDepois.toLocaleDateString()})*\n\n`;
-        const corpo = eventosDaSemana.join("\n");
-        const rodape = "\n👉 Se tiver dúvida, fale com a gente!";
-
-        const mensagemFinal = `${saudacao}${cabecalho}${corpo}${rodape}`;
-
-      for (const contato of numeros) {
-        for (const evento of eventosDaSemana) {
-          await enviarTemplateLembreteEvento(contato.numero, evento.nome, evento.data);
+      if (eventosProximos.length > 0) {
+        for (const contato of ativos) {
+          for (const evento of eventosProximos) {
+            await enviarTemplateLembreteEvento(contato.numero, evento.nome, evento.data);
+          }
+          // marca como Enviado
+          updates[contato.idx] = ["Enviado"];
         }
-        updates[contato.idx] = ["Pendente"];
-      }
-
       } else {
-        console.log("Nenhum evento na próxima semana.");
+        console.log("Nenhum evento nos próximos 7 dias.");
       }
 
       await sheets.spreadsheets.values.update({
         spreadsheetId,
-        range: "fila_envio!G2:G",
+        range: "Fila_Envio!H2:H",
         valueInputOption: "RAW",
         resource: { values: updates },
       });
@@ -358,11 +388,25 @@ async function verificarEventosParaLembrete() {
   }
 }
 
-// Webhook principal
+// ================================================================
+// WEBHOOK VERIFICAÇÃO (GET) E PRINCIPAL (POST)
+// ================================================================
 
-// ================================================================
-// WEBHOOK PRINCIPAL - RECEBIMENTO DE MENSAGENS DO WHATSAPP
-// ================================================================
+// Verificação do webhook (Meta)
+app.get("/webhook", (req, res) => {
+  const mode = req.query["hub.mode"];
+  const tokenVerify = req.query["hub.verify_token"];
+  const challenge = req.query["hub.challenge"];
+
+  if (mode && tokenVerify && mode === "subscribe" && tokenVerify === VERIFY_TOKEN) {
+    console.log("✅ Webhook verificado");
+    return res.status(200).send(challenge);
+  }
+  console.warn("❌ Verificação de webhook falhou");
+  return res.sendStatus(403);
+});
+
+// Recebimento de mensagens do WhatsApp
 app.post("/webhook", async (req, res) => {
   const body = req.body;
   if (body.object) {
@@ -406,7 +450,8 @@ app.post("/webhook", async (req, res) => {
     if (textoRecebido === "6") {
       const saudacao = "📅 *Agenda de Eventos do EAC - Mês Atual*";
       try {
-        const resposta = await axios.get(process.env.URL_APP_SCRIPT_EVENTOS);
+        if (!URL_APP_SCRIPT_EVENTOS) throw new Error("URL_APP_SCRIPT_EVENTOS não configurada.");
+        const resposta = await axios.get(URL_APP_SCRIPT_EVENTOS);
         const { status, links } = resposta.data;
 
         if (status === "SEM_EVENTOS") {
@@ -461,10 +506,8 @@ app.post("/webhook", async (req, res) => {
   res.sendStatus(404);
 });
 
-// Função para gerar mensagens com OpenAI
-
 // ================================================================
-// INTEGRAÇÃO COM OPENAI - GERAÇÃO DE CONTEÚDO
+// INTEGRAÇÃO COM OPENAI - GERAÇÃO DE CONTEÚDO (mantido)
 // ================================================================
 async function gerarMensagemOpenAI(prompt) {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -487,10 +530,8 @@ async function gerarMensagemOpenAI(prompt) {
   return resposta.data.choices[0].message.content.trim();
 }
 
-// Função para disparar eventos da semana SEM usar template (texto normal)
-
 // ================================================================
-// DISPARO DE EVENTOS SEM TEMPLATE
+// DISPARO DE EVENTOS SEM TEMPLATE (7 dias)
 // ================================================================
 async function dispararEventosSemTemplate() {
   try {
@@ -502,8 +543,7 @@ async function dispararEventosSemTemplate() {
     const client = await auth.getClient();
     const sheets = google.sheets({ version: "v4", auth: client });
 
-    // 1. Busca os eventos (sem alteração aqui)
-    const spreadsheetIdEventos = process.env.SPREADSHEET_ID_EVENTOS; // Assumindo que este é o ID da planilha de comunicados
+    const spreadsheetIdEventos = SPREADSHEET_ID_EVENTOS;
     const rangeEventos = "comunicados!A2:G";
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: spreadsheetIdEventos,
@@ -518,29 +558,29 @@ async function dispararEventosSemTemplate() {
 
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
-    const seteDiasDepois = new Date(hoje);
-    seteDiasDepois.setDate(hoje.getDate() + 7); // Ou 30, se você já alterou
+    const limite = new Date(hoje);
+    limite.setDate(hoje.getDate() + 7);
 
     const eventosDaSemana = rows
-      .map((row, index) => {
+      .map((row) => {
         const titulo = row[1] || "(Sem título)";
         const dataTexto = row[6];
-        if (!dataTexto || dataTexto.trim() === '') return null;
+        if (!dataTexto || String(dataTexto).trim() === '') return null;
 
         let dataEvento;
-        if (/^\d{2}\/\d{2}\/\d{4}$/.test(dataTexto.trim())) {
-          const [dia, mes, ano] = dataTexto.trim().split("/");
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(String(dataTexto).trim())) {
+          const [dia, mes, ano] = String(dataTexto).trim().split("/");
           dataEvento = new Date(`${ano}-${mes}-${dia}`);
         } else {
-          dataEvento = new Date(dataTexto.trim());
+          dataEvento = new Date(String(dataTexto).trim());
         }
 
-        if (!isNaN(dataEvento.getTime()) && dataEvento >= hoje && dataEvento <= seteDiasDepois) {
-          return `📅 *${titulo}* - ${dataTexto}`;
+        if (!isNaN(dataEvento.getTime()) && dataEvento >= hoje && dataEvento <= limite) {
+          return `📅 *${titulo}* - ${String(dataTexto).trim()}`;
         }
         return null;
       })
-      .filter(e => e);
+      .filter(Boolean);
 
     if (eventosDaSemana.length === 0) {
       console.log("Nenhum evento nos próximos 7 dias.");
@@ -549,40 +589,26 @@ async function dispararEventosSemTemplate() {
 
     const mensagemFinal = `📢 *Próximos Eventos do EAC:*\n\n${eventosDaSemana.join("\n")}\n\n🟠 Se tiver dúvidas, fale com a gente!`;
 
-    // 2. Lógica de envio para as planilhas de contatos
-    // Usaremos um Set para garantir que cada número receba a mensagem apenas uma vez
     const numerosJaEnviados = new Set();
 
-    // Planilha de Encontreiros (permanece a mesma)
-    const planilhaEncontreirosId = "1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4";
-    console.log(`📂 Acessando planilha de Encontreiros: ${planilhaEncontreirosId}`);
-    const rangeFilaEncontreiros = "Fila_Envio!F2:H"; // Colunas F (número) e H (status)
+    // Encontreiros
+    const planilhaEncontreirosId = SHEET_ENCONTREIROS_ID;
+    const rangeFilaEncontreiros = "Fila_Envio!F2:H";
     const filaEncontreirosResponse = await sheets.spreadsheets.values.get({
       spreadsheetId: planilhaEncontreirosId,
       range: rangeFilaEncontreiros,
     });
     const contatosEncontreiros = filaEncontreirosResponse.data.values || [];
-    console.log(`🔍 Verificando ${contatosEncontreiros.length} registros na planilha de Encontreiros...`);
-
     for (let i = 0; i < contatosEncontreiros.length; i++) {
       const numero = contatosEncontreiros[i][0];
-      const statusEnvio = contatosEncontreiros[i][2]; // Coluna H
+      const statusEnvio = contatosEncontreiros[i][2]; // H
 
-      if (!numero || statusEnvio === "Enviado" || numerosJaEnviados.has(numero)) {
-        if (numerosJaEnviados.has(numero)) {
-          console.log(`⏭️ Pulando ${numero} (Encontreiros): já processado nesta execução.`);
-        } else {
-          console.log(`⏭️ Pulando linha ${i + 2} (Encontreiros): já enviado ou sem número.`);
-        }
-        continue;
-      }
+      if (!numeroValido(numero) || statusEnvio === "Enviado" || numerosJaEnviados.has(numero)) continue;
 
       try {
         await enviarMensagem(numero, mensagemFinal);
-        console.log(`✅ Evento enviado para ${numero} (Encontreiros)`);
         numerosJaEnviados.add(numero);
-
-        const updateRange = `fila_envio!H${i + 2}`;
+        const updateRange = `Fila_Envio!H${i + 2}`;
         await sheets.spreadsheets.values.update({
           spreadsheetId: planilhaEncontreirosId,
           range: updateRange,
@@ -591,7 +617,7 @@ async function dispararEventosSemTemplate() {
         });
       } catch (erroEnvio) {
         console.error(`❌ Erro ao enviar evento para ${numero} (Encontreiros):`, erroEnvio.message);
-        const updateRange = `fila_envio!H${i + 2}`;
+        const updateRange = `Fila_Envio!H${i + 2}`;
         await sheets.spreadsheets.values.update({
           spreadsheetId: planilhaEncontreirosId,
           range: updateRange,
@@ -601,40 +627,25 @@ async function dispararEventosSemTemplate() {
       }
     }
 
-    // NOVA Planilha de Cadastro Oficial (substitui a de Encontristas)
-    const planilhaCadastroOficialId = "1I988yRvGYfjhoqmFvdQbjO9qWzTB4T6yv0dDBxQ-oEg";
-    const abaCadastroOficial = "Cadastro_Oficial";
-    // Coluna G para número (índice 0 do range G2:U)
-    // Coluna U para status de envio (índice 14 do range G2:U)
-    const rangeCadastroOficial = `${abaCadastroOficial}!G2:U`;
-
-    console.log(`📂 Acessando planilha de Cadastro Oficial: ${planilhaCadastroOficialId}`);
+    // Cadastro_Oficial
+    const planilhaCadastroOficialId = SHEET_CADASTRO_ID;
+    const abaCadastroOficial = await descobrirAbaCadastro(sheets, planilhaCadastroOficialId);
+    const rangeCadastroOficial = `${abaCadastroOficial}!G2:U`; // G tel, U status
     const cadastroOficialResponse = await sheets.spreadsheets.values.get({
       spreadsheetId: planilhaCadastroOficialId,
       range: rangeCadastroOficial,
     });
     const contatosCadastroOficial = cadastroOficialResponse.data.values || [];
-    console.log(`🔍 Verificando ${contatosCadastroOficial.length} registros na planilha de Cadastro Oficial...`);
-
     for (let i = 0; i < contatosCadastroOficial.length; i++) {
-      const numero = contatosCadastroOficial[i][0]; // Coluna G
-      const statusEnvio = contatosCadastroOficial[i][14]; // Coluna U
+      const numero = contatosCadastroOficial[i][0]; // G
+      const statusEnvio = contatosCadastroOficial[i][14]; // U
 
-      if (!numero || statusEnvio === "Enviado" || numerosJaEnviados.has(numero)) {
-        if (numerosJaEnviados.has(numero)) {
-          console.log(`⏭️ Pulando ${numero} (Cadastro Oficial): já processado nesta execução.`);
-        } else {
-          console.log(`⏭️ Pulando linha ${i + 2} (Cadastro Oficial): já enviado ou sem número.`);
-        }
-        continue;
-      }
+      if (!numeroValido(numero) || statusEnvio === "Enviado" || numerosJaEnviados.has(numero)) continue;
 
       try {
         await enviarMensagem(numero, mensagemFinal);
-        console.log(`✅ Evento enviado para ${numero} (Cadastro Oficial)`);
         numerosJaEnviados.add(numero);
 
-        // ATUALIZA O STATUS NA COLUNA U DA PLANILHA DE CADASTRO OFICIAL
         const updateRange = `${abaCadastroOficial}!U${i + 2}`;
         await sheets.spreadsheets.values.update({
           spreadsheetId: planilhaCadastroOficialId,
@@ -660,17 +671,13 @@ async function dispararEventosSemTemplate() {
   }
 }
 
-// Atualização do endpoint /disparo para incluir comunicado_geral
-
 // ================================================================
 // ENDPOINT MANUAL DE DISPAROS (via URL)
 // ================================================================
 app.get("/disparo", async (req, res) => {
   const chave = req.query.chave;
   const tipo = req.query.tipo;
-  const chaveCorreta = process.env.CHAVE_DISPARO;
-
-  if (chave !== chaveCorreta) {
+  if (chave !== CHAVE_DISPARO) {
     return res.status(401).send("❌ Acesso não autorizado.");
   }
 
@@ -694,42 +701,39 @@ app.get("/disparo", async (req, res) => {
     }
 
     if (tipo === "comunicado_geral") {
-      console.log("🚀 Disparando comunicado geral para contatos da fila_envio...");
+      console.log("🚀 Disparando comunicado geral para contatos da planilha...");
       await dispararComunicadoGeralFila();
       return res.status(200).send("✅ Comunicado geral enviado com sucesso.");
     }
 
     console.log("📢 Tipo de disparo inválido ou não informado.");
-    res.status(400).send("❌ Tipo de disparo inválido. Use tipo=boasvindas ou tipo=eventos.");
+    res.status(400).send("❌ Tipo de disparo inválido. Use tipo=boasvindas, tipo=eventos, tipo=agradecimento_inscricao ou tipo=comunicado_geral.");
   } catch (erro) {
     console.error("❌ Erro no disparo manual:", erro);
     res.status(500).send("❌ Erro ao processar o disparo.");
   }
 });
 
-// CRON Jobs
-
 // ================================================================
-// AGENDAMENTO AUTOMÁTICO VIA CRON
+// AGENDAMENTO AUTOMÁTICO VIA CRON (timezone)
 // ================================================================
 cron.schedule("50 08 * * *", () => {
   console.log("🔁 Reativando contatos com status pendente...");
   reativarContatosPendentes();
-});
+}, { timezone: "America/Sao_Paulo" });
 
-
-// ================================================================
-// AGENDAMENTO AUTOMÁTICO VIA CRON
-// ================================================================
 cron.schedule("00 09 * * *", () => {
   console.log("⏰ Executando verificação de eventos para lembrete às 09:00...");
   verificarEventosParaLembrete();
-});
+}, { timezone: "America/Sao_Paulo" });
 
-// Função para envio do template de boas-vindas (primeiro contato)
+// ================================================================
+// TEMPLATES ESPECÍFICOS
+// ================================================================
 async function enviarTemplateBoasVindas(numero) {
   try {
-    console.log(`📨 Enviando template de boas-vindas para: ${numero}`);
+    if (!numeroValido(numero)) return;
+    console.log(`📨 Enviando template de boas-vindas (${TEMPLATE_BOASVINDAS}) para: ${numero}`);
 
     await axios.post(
       `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
@@ -738,7 +742,7 @@ async function enviarTemplateBoasVindas(numero) {
         to: numero,
         type: "template",
         template: {
-          name: "eac_boasvindas_v1",
+          name: TEMPLATE_BOASVINDAS,
           language: { code: "pt_BR" }
         }
       },
@@ -756,7 +760,6 @@ async function enviarTemplateBoasVindas(numero) {
   }
 }
 
-// Função para disparar boas-vindas para todos os contatos ativos nas duas planilhas
 async function dispararBoasVindasParaAtivos() {
   try {
     const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
@@ -768,23 +771,22 @@ async function dispararBoasVindasParaAtivos() {
     const sheets = google.sheets({ version: "v4", auth: client });
 
     const planilhas = [
-      "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8", // Encontristas
-      "1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4"  // Encontreiros
+      SHEET_EVENTOS_ID, // Encontristas original
+      SHEET_ENCONTREIROS_ID  // Encontreiros
     ];
 
     const numerosUnicos = new Set();
 
     for (const spreadsheetId of planilhas) {
-      const rangeFila = "fila_envio!F2:G";
+      const rangeFila = "Fila_Envio!F2:H";
       const response = await sheets.spreadsheets.values.get({
         spreadsheetId,
         range: rangeFila,
       });
 
       const contatos = response.data.values || [];
-
-      contatos.forEach(([numero, status]) => {
-        if (status === "Ativo") {
+      contatos.forEach(([numero, _g, status]) => {
+        if (status === "Ativo" && numeroValido(numero)) {
           numerosUnicos.add(numero);
         }
       });
@@ -793,7 +795,6 @@ async function dispararBoasVindasParaAtivos() {
     console.log(`📨 Total de contatos únicos para disparo: ${numerosUnicos.size}`);
 
     for (const numero of numerosUnicos) {
-      console.log(`📨 Enviando template de boas-vindas para: ${numero}`);
       await enviarTemplateBoasVindas(numero);
     }
 
@@ -806,9 +807,7 @@ async function dispararBoasVindasParaAtivos() {
 
 app.get("/dispararConfirmacaoParticipacao", async (req, res) => {
   const chave = req.query.chave;
-  const chaveCorreta = process.env.CHAVE_DISPARO;
-
-  if (chave !== chaveCorreta) {
+  if (chave !== CHAVE_DISPARO) {
     return res.status(401).send("❌ Acesso não autorizado.");
   }
 
@@ -823,28 +822,21 @@ app.get("/dispararConfirmacaoParticipacao", async (req, res) => {
 
     const spreadsheetId = "1I988yRvGYfjhoqmFvdQbjO9qWzTB4T6yv0dDBxQ-oEg";
     const aba = "Inscricoes_Prioritarias";
-    const range = `${aba}!A2:W76`;  // Linhas 2 a 73, até a coluna W
+    const range = `${aba}!A2:W76`;
 
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range,
-    });
-
+    const response = await sheets.spreadsheets.values.get({ spreadsheetId, range });
     const rows = response.data.values || [];
-
     console.log(`🔎 Total de registros carregados da aba ${aba}: ${rows.length}`);
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      const numeroWhatsApp = row[6];  // Coluna G = índice 6
-      const statusEnvio = row[22];    // Coluna W = índice 22
+      const numeroWhatsApp = row[6];  // G
+      const statusEnvio = row[22];    // W
 
-      if (!numeroWhatsApp || statusEnvio === "Enviado") {
-        console.log(`⏭️ Pulando linha ${i + 2}: número vazio ou já enviado.`);
+      if (!numeroValido(numeroWhatsApp) || statusEnvio === "Enviado") {
+        console.log(`⏭️ Pulando linha ${i + 2}: número inválido/vazio ou já enviado.`);
         continue;
       }
-
-      console.log(`📨 Enviando template de confirmação para: ${numeroWhatsApp}`);
 
       try {
         await axios.post(
@@ -854,7 +846,7 @@ app.get("/dispararConfirmacaoParticipacao", async (req, res) => {
             to: numeroWhatsApp,
             type: "template",
             template: {
-              name: "eac_confirmar_participacao_v1",
+              name: TEMPLATE_CONFIRMACAO,
               language: { code: "pt_BR" },
             },
           },
@@ -866,7 +858,6 @@ app.get("/dispararConfirmacaoParticipacao", async (req, res) => {
           }
         );
 
-        // Atualizar status na coluna W (linha correta)
         const updateRange = `${aba}!W${i + 2}`;
         await sheets.spreadsheets.values.update({
           spreadsheetId,
@@ -876,9 +867,15 @@ app.get("/dispararConfirmacaoParticipacao", async (req, res) => {
         });
 
         console.log(`✅ Mensagem enviada e status marcado na linha ${i + 2}`);
-
       } catch (erroEnvio) {
         console.error(`❌ Erro ao enviar para ${numeroWhatsApp}:`, JSON.stringify(erroEnvio.response?.data || erroEnvio, null, 2));
+        const updateRange = `${aba}!W${i + 2}`;
+        await sheets.spreadsheets.values.update({
+          spreadsheetId,
+          range: updateRange,
+          valueInputOption: "RAW",
+          resource: { values: [["Erro"]] },
+        });
       }
     }
 
@@ -889,18 +886,19 @@ app.get("/dispararConfirmacaoParticipacao", async (req, res) => {
   }
 });
 
-// Painel Web para disparos manuais
+// ================================================================
+// PAINEL WEB (apenas memória)
+// ================================================================
 const disparosDisponiveis = [
-  { nome: "Enviar Agradecimento de Inscrição", tipo: "agradecimento_inscricao", endpoint: "/disparo?chave=" + process.env.CHAVE_DISPARO + "&tipo=agradecimento_inscricao", descricao: "Dispara o template de agradecimento para os inscritos não selecionados" },
-  { nome: "Enviar Boas-Vindas", tipo: "boasvindas", endpoint: "/disparo?chave=" + process.env.CHAVE_DISPARO + "&tipo=boasvindas", descricao: "Dispara o template de boas-vindas para contatos ativos" },
-  { nome: "Enviar Eventos da Semana", tipo: "eventos", endpoint: "/disparo?chave=" + process.env.CHAVE_DISPARO + "&tipo=eventos", descricao: "Envia resumo dos eventos próximos da planilha" },
-  { nome: "Enviar Confirmação de Participação", tipo: "confirmacao", endpoint: "/dispararConfirmacaoParticipacao?chave=" + process.env.CHAVE_DISPARO, descricao: "Dispara o template de confirmação para os prioritários" },
-  { nome: "Enviar Comunicado Geral", tipo: "comunicado_geral", endpoint: "/disparo?chave=" + process.env.CHAVE_DISPARO + "&tipo=comunicado_geral", descricao: "Dispara um comunicado via template para números da aba Fila_Envio" }
+  { nome: "Enviar Agradecimento de Inscrição", tipo: "agradecimento_inscricao", endpoint: "/disparo?chave=" + CHAVE_DISPARO + "&tipo=agradecimento_inscricao", descricao: "Dispara o template de agradecimento para os inscritos não selecionados" },
+  { nome: "Enviar Boas-Vindas", tipo: "boasvindas", endpoint: "/disparo?chave=" + CHAVE_DISPARO + "&tipo=boasvindas", descricao: "Dispara o template de boas-vindas para contatos ativos" },
+  { nome: "Enviar Eventos da Semana", tipo: "eventos", endpoint: "/disparo?chave=" + CHAVE_DISPARO + "&tipo=eventos", descricao: "Envia resumo dos eventos próximos da planilha" },
+  { nome: "Enviar Confirmação de Participação", tipo: "confirmacao", endpoint: "/dispararConfirmacaoParticipacao?chave=" + CHAVE_DISPARO, descricao: "Dispara o template de confirmação para os prioritários" },
+  { nome: "Enviar Comunicado Geral", tipo: "comunicado_geral", endpoint: "/disparo?chave=" + CHAVE_DISPARO + "&tipo=comunicado_geral", descricao: "Dispara um comunicado via template para números da aba Fila_Envio / Cadastro" }
 ];
 
 let statusLogs = [];
 
-// Painel Web para disparos manuais com tabela, formulário e logs
 app.get("/painel", (req, res) => {
   const listaDisparos = disparosDisponiveis.map(d => `
     <tr>
@@ -993,10 +991,12 @@ app.post("/adicionarDisparo", express.json(), (req, res) => {
   res.send("✅ Novo disparo adicionado com sucesso!");
 });
 
-// Função para envio do template de agradecimento de inscrição
+// ================================================================
+// AGRADECIMENTO INSCRIÇÃO / NÃO INCLUÍDOS
+// ================================================================
 async function enviarTemplateAgradecimentoInscricao(numero) {
   try {
-    console.log(`📨 Enviando template de agradecimento para: ${numero}`);
+    if (!numeroValido(numero)) return;
 
     await axios.post(
       `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
@@ -1005,7 +1005,7 @@ async function enviarTemplateAgradecimentoInscricao(numero) {
         to: numero,
         type: "template",
         template: {
-          name: "eac_agradecimento_inscricao_v1",
+          name: TEMPLATE_AGRADECIMENTO,
           language: { code: "pt_BR" }
         }
       },
@@ -1016,17 +1016,13 @@ async function enviarTemplateAgradecimentoInscricao(numero) {
         }
       }
     );
-
-    console.log(`✅ Agradecimento enviado com sucesso para: ${numero}`);
     statusLogs.push({ tipo: 'agradecimento_inscricao', resultado: '✅ Agradecimento enviado', horario: new Date() });
-
   } catch (error) {
     console.error(`❌ Erro ao enviar agradecimento para ${numero}:`, JSON.stringify(error.response?.data || error, null, 2));
     statusLogs.push({ tipo: 'agradecimento_inscricao', resultado: '❌ Erro no envio', horario: new Date() });
   }
 }
 
-// Função para envio de agradecimento apenas para não incluídos
 async function dispararAgradecimentoInscricaoParaNaoIncluidos() {
   try {
     const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
@@ -1040,40 +1036,34 @@ async function dispararAgradecimentoInscricaoParaNaoIncluidos() {
     const spreadsheetId = "1I988yRvGYfjhoqmFvdQbjO9qWzTB4T6yv0dDBxQ-oEg";
     const range = "Inscricoes_Prioritarias!G2:U";
 
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range,
-    });
-
+    const response = await sheets.spreadsheets.values.get({ spreadsheetId, range });
     const contatos = response.data.values || [];
 
     let totalEncontrados = 0;
     let totalEnviados = 0;
 
     for (const [index, linha] of contatos.entries()) {
-      const numero = linha[0];    // Coluna G (índice 0)
-      const statusU = linha[14];  // Coluna U (índice 14)
+      const numero = linha[0];    // G
+      const statusU = linha[14];  // U
 
-      if (statusU && statusU.toLowerCase() === "nao_incluido") {
+      if (String(statusU || "").toLowerCase() === "nao_incluido" && numeroValido(numero)) {
         totalEncontrados++;
-        console.log(`➡️ Linha ${index + 2} | Número: ${numero} | Status: ${statusU} | Enviando...`);
         try {
           await enviarTemplateAgradecimentoInscricao(numero);
           totalEnviados++;
-          console.log(`✅ Mensagem enviada com sucesso para: ${numero}`);
-        } catch (erroEnvio) {
-          console.error(`❌ Erro ao enviar para ${numero}:`, JSON.stringify(erroEnvio.response?.data || erroEnvio, null, 2));
-        }
+        } catch (_) {}
       }
     }
 
-    console.log(`📊 Resultado final: ${totalEncontrados} contatos encontrados com 'nao_incluido'. ${totalEnviados} mensagens enviadas.`);
+    console.log(`📊 Resultado final: ${totalEncontrados} contatos 'nao_incluido'. ${totalEnviados} mensagens enviadas.`);
   } catch (error) {
     console.error("❌ Erro ao disparar agradecimento:", error);
   }
 }
 
-// Função para envio de comunicado geral a partir da aba fila_envio
+// ================================================================
+// COMUNICADO GERAL (Cadastro + Encontreiros) com aba dinâmica
+// ================================================================
 async function dispararComunicadoGeralFila() {
   try {
     const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
@@ -1086,11 +1076,10 @@ async function dispararComunicadoGeralFila() {
 
     const numerosJaEnviados = new Set();
 
-    // Primeira planilha: Cadastro Oficial (coluna G, status na U)
-    //const planilhaCadastroId = "1I988yRvGYfjhoqmFvdQbjO9qWzTB4T6yv0dDBxQ-oEg";
-    const planilhaCadastroId = "13QUYrH1iRV1TwyVQhtCHjXy77XxB9Eu7R_wsCZIJDwk";
-    const rangeCadastro = "Cadastro Oficial!G2:U";
-    
+    // CADASTRO OFICIAL
+    const planilhaCadastroId = SHEET_CADASTRO_ID;
+    const abaCadastro = await descobrirAbaCadastro(sheets, planilhaCadastroId);
+    const rangeCadastro = `${abaCadastro}!G2:U`; // G telefone, U status
 
     const resCadastro = await sheets.spreadsheets.values.get({
       spreadsheetId: planilhaCadastroId,
@@ -1098,14 +1087,13 @@ async function dispararComunicadoGeralFila() {
     });
 
     const rowsCadastro = resCadastro.data.values || [];
-    console.log(`📄 [Cadastro_Oficial] Registros: ${rowsCadastro.length}`);
+    console.log(`📄 [${abaCadastro}] Registros: ${rowsCadastro.length} (ID ${planilhaCadastroId})`);
 
     for (let i = 0; i < rowsCadastro.length; i++) {
       const numero = rowsCadastro[i][0];
       const status = rowsCadastro[i][14];
 
-      if (!numero || status === "Enviado" || numerosJaEnviados.has(numero)) {
-        console.log(`⏭️ [Cadastro] Pulando linha ${i + 2}`);
+      if (!numeroValido(numero) || status === "Enviado" || numerosJaEnviados.has(numero)) {
         continue;
       }
 
@@ -1117,22 +1105,16 @@ async function dispararComunicadoGeralFila() {
             to: numero,
             type: "template",
             template: {
-              name: "eac_comunicado_geral_v2",
+              name: TEMPLATE_COMUNICADO,
               language: { code: "pt_BR" }
             }
           },
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json"
-            }
-          }
+          { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } }
         );
 
-        console.log(`✅ [Cadastro] Mensagem enviada para ${numero}`);
         numerosJaEnviados.add(numero);
 
-        const updateRange = `Cadastro_Oficial!U${i + 2}`;
+        const updateRange = `${abaCadastro}!U${i + 2}`;
         await sheets.spreadsheets.values.update({
           spreadsheetId: planilhaCadastroId,
           range: updateRange,
@@ -1141,7 +1123,7 @@ async function dispararComunicadoGeralFila() {
         });
       } catch (erroEnvio) {
         console.error(`❌ [Cadastro] Erro ao enviar para ${numero}:`, erroEnvio.message);
-        const updateRange = `Cadastro_Oficial!U${i + 2}`;
+        const updateRange = `${abaCadastro}!U${i + 2}`;
         await sheets.spreadsheets.values.update({
           spreadsheetId: planilhaCadastroId,
           range: updateRange,
@@ -1151,8 +1133,8 @@ async function dispararComunicadoGeralFila() {
       }
     }
 
-    // Segunda planilha: Encontreiros (coluna F, status na H)
-    const planilhaEncontreirosId = "1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4";
+    // ENCONTREIROS
+    const planilhaEncontreirosId = SHEET_ENCONTREIROS_ID;
     const rangeEncontreiros = "Fila_Envio!F2:H";
 
     const resEncontreiros = await sheets.spreadsheets.values.get({
@@ -1167,8 +1149,7 @@ async function dispararComunicadoGeralFila() {
       const numero = rowsEncontreiros[i][0];
       const status = rowsEncontreiros[i][2];
 
-      if (!numero || status === "Enviado" || numerosJaEnviados.has(numero)) {
-        console.log(`⏭️ [Encontreiros] Pulando linha ${i + 2}`);
+      if (!numeroValido(numero) || status === "Enviado" || numerosJaEnviados.has(numero)) {
         continue;
       }
 
@@ -1180,19 +1161,13 @@ async function dispararComunicadoGeralFila() {
             to: numero,
             type: "template",
             template: {
-              name: "eac_comunicado_geral_v2",
+              name: TEMPLATE_COMUNICADO,
               language: { code: "pt_BR" }
             }
           },
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json"
-            }
-          }
+          { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } }
         );
 
-        console.log(`✅ [Encontreiros] Mensagem enviada para ${numero}`);
         numerosJaEnviados.add(numero);
 
         const updateRange = `Fila_Envio!H${i + 2}`;
@@ -1220,13 +1195,9 @@ async function dispararComunicadoGeralFila() {
   }
 }
 
-
-
-
 // ================================================================
 // SISTEMA DE MÉTRICAS E ANALYTICS DO BOT (com integração Sheets)
 // ================================================================
-
 let metricas = {
   usuariosUnicos: new Set(),
   totalMensagensRecebidas: 0,
@@ -1238,8 +1209,6 @@ let metricas = {
   historico: []
 };
 
-// Registra acesso do usuário e salva também na planilha
-// Substitua toda a função antiga por essa abaixo
 async function registrarAcessoUsuario(numero, opcaoEscolhida = null) {
   const agora = new Date();
   const hoje = agora.toISOString().split('T')[0];
@@ -1279,7 +1248,7 @@ async function registrarAcessoUsuario(numero, opcaoEscolhida = null) {
 
   console.log(`📊 Acesso registrado: ${numero} - ${opcaoEscolhida || 'Menu'} - ${usuarioExistente ? 'Retorno' : 'Novo usuário'}`);
 
-  // Envia também para a planilha
+  // Persistência simples em planilha
   try {
     const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
     const auth = new google.auth.GoogleAuth({
@@ -1294,7 +1263,7 @@ async function registrarAcessoUsuario(numero, opcaoEscolhida = null) {
     const linha = [[data, hora, numero, opcaoEscolhida || "menu", !usuarioExistente ? "Sim" : "Não"]];
 
     await sheets.spreadsheets.values.append({
-      spreadsheetId: "160SnALnu-7g6_1EUCh9mf6vLuh1-BY1mowFceTfgnyk",
+      spreadsheetId: SHEET_ACESSOS_ID,
       range: "Acessos_Bot!A:E",
       valueInputOption: "RAW",
       resource: { values: linha },
@@ -1328,9 +1297,9 @@ app.get("/email-cantina", (req, res) => {
   `);
 });
 
-
-
-// Inicialização do servidor
+// ================================================================
+// INICIALIZAÇÃO DO SERVIDOR
+// ================================================================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
