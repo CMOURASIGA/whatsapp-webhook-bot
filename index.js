@@ -761,11 +761,12 @@ app.get("/disparo", async (req, res) => {
     if (tipo === "aniversario") {
       console.log("🚀 Disparando Felicitações de Aniversário (hoje)…");
       const result = await enviarComunicadoAniversarioHoje({
-        getSheetsClient,                 // <- passa o client do Sheets que já existe no seu index
-        sendWhatsAppTemplate: enviarWhatsAppTemplate // <- passa o sender que você já usa
+        getSheetsClient: (typeof getSheetsClient === "function" ? getSheetsClient : getSheetsClientLocal),
+        sendWhatsAppTemplate: (typeof enviarWhatsAppTemplate === "function" ? enviarWhatsAppTemplate : enviarWhatsAppTemplateLocal),
       });
       return res.json({ ok: true, tipo, ...result });
     }
+
   
     console.log("📢 Tipo de disparo inválido ou não informado.");
     res.status(400).send("❌ Tipo de disparo inválido. Use tipo=boasvindas ou tipo=eventos.");
