@@ -35,10 +35,6 @@ try {
   console.error("[SA] Erro ao ler GOOGLE_CREDENTIALS:", e.message);
 }
 
-// ==== Fallbacks locais (usados só se você não tiver as versões globais) ====
-const { google } = require("googleapis");
-const axios = require("axios");
-
 function getSheetsClientLocal() {
   const creds = JSON.parse(process.env.GOOGLE_CREDENTIALS || "{}");
   if (!creds.client_email || !creds.private_key) {
