@@ -23,6 +23,18 @@ function getRandomMessage(messages) {
 }
 // --- FIM DA ADIÇÃO ---
 
+// logo no topo do index.js
+try {
+  const creds = JSON.parse(process.env.GOOGLE_CREDENTIALS || "{}");
+  if (creds.client_email) {
+    console.log("[SA] client_email:", creds.client_email);
+  } else {
+    console.warn("[SA] GOOGLE_CREDENTIALS sem client_email ou variável vazia.");
+  }
+} catch (e) {
+  console.error("[SA] Erro ao ler GOOGLE_CREDENTIALS:", e.message);
+}
+
 //função de saudação
 
 function ehSaudacao(texto) {
