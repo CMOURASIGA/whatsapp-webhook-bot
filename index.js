@@ -35,6 +35,53 @@ try {
   console.error("[SA] Erro ao ler GOOGLE_CREDENTIALS:", e.message);
 }
 
+// ==== Fallbacks locais (usados só se você não tiver as versões globais) ====
+const { google } = require("googleapis");
+const axios = require("axios");
+
+function getSheetsClientLocal() {
+  const creds = JSON.parse(process.env.GOOGLE_CREDENTIALS || "{}");
+  if (!creds.client_email || !creds.private_key) {
+    throw new Error("GOOGLE_CREDENTIALS inválido no fallback (client_email/private_key ausentes).");
+  }
+  const jwt = new google.auth.JWT(
+    creds.client_email,
+    null,
+    creds.private_key,
+    ["https://www.googleapis.com/auth/spreadsheets"]
+  );
+  return google.sheets({ version: "v4", auth: jwt });
+}
+
+// sender WA mínimo (usado só se você não tiver um global)
+async function enviarWhatsAppTemplateLocal(numero, templateName, variaveis = []) {
+  const token = process.env.WHATSAPP_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  if (!token || !phoneNumberId) throw new Error("WHATSAPP_TOKEN/WHATSAPP_PHONE_NUMBER_ID não configurados.");
+
+  const url = `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`;
+  const body = {
+    messaging_product: "whatsapp",
+    to: numero,
+    type: "template",
+    template: {
+      name: templateName,
+      language: { code: "pt_BR" },
+      components: variaveis.length
+        ? [{ type: "body", parameters: variaveis.map(v => ({ type: "text", text: `${v}` })) }]
+        : undefined,
+    },
+  };
+
+  const resp = await axios.post(url, body, {
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    timeout: 20000,
+  });
+  return resp?.data?.messages?.[0]?.id;
+}
+
+
+
 //função de saudação
 
 function ehSaudacao(texto) {
