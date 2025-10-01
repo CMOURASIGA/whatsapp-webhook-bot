@@ -1087,9 +1087,10 @@ async function dispararComunicadoGeralFila() {
     const numerosJaEnviados = new Set();
 
     // Primeira planilha: Cadastro Oficial (coluna G, status na U)
-    const planilhaCadastroId = "1I988yRvGYfjhoqmFvdQbjO9qWzTB4T6yv0dDBxQ-oEg";
+    const planilhaCadastroId = "13QUYrH1iRV1TwyVQhtCHjXy77XxB9Eu7R_wsCZIJDwk";
+    //1I988yRvGYfjhoqmFvdQbjO9qWzTB4T6yv0dDBxQ-oEg
     //const planilhaCadastroId = "13QUYrH1iRV1TwyVQhtCHjXy77XxB9Eu7R_wsCZIJDwk";
-    const rangeCadastro = "Cadastro_Oficial!G2:U";
+    const rangeCadastro = "Cadastro Oficial!G2:U";
     
 
     const resCadastro = await sheets.spreadsheets.values.get({
@@ -1098,7 +1099,7 @@ async function dispararComunicadoGeralFila() {
     });
 
     const rowsCadastro = resCadastro.data.values || [];
-    console.log(`📄 [Cadastro_Oficial] Registros: ${rowsCadastro.length}`);
+    console.log(`📄 [Cadastro Oficial] Registros: ${rowsCadastro.length}`);
 
     for (let i = 0; i < rowsCadastro.length; i++) {
       const numero = rowsCadastro[i][0];
@@ -1132,7 +1133,7 @@ async function dispararComunicadoGeralFila() {
         console.log(`✅ [Cadastro] Mensagem enviada para ${numero}`);
         numerosJaEnviados.add(numero);
 
-        const updateRange = `Cadastro_Oficial!U${i + 2}`;
+        const updateRange = `Cadastro Oficial!U${i + 2}`;
         await sheets.spreadsheets.values.update({
           spreadsheetId: planilhaCadastroId,
           range: updateRange,
@@ -1141,7 +1142,7 @@ async function dispararComunicadoGeralFila() {
         });
       } catch (erroEnvio) {
         console.error(`❌ [Cadastro] Erro ao enviar para ${numero}:`, erroEnvio.message);
-        const updateRange = `Cadastro_Oficial!U${i + 2}`;
+        const updateRange = `Cadastro Oficial!U${i + 2}`;
         await sheets.spreadsheets.values.update({
           spreadsheetId: planilhaCadastroId,
           range: updateRange,
