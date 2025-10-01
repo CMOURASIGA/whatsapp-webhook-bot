@@ -1394,128 +1394,147 @@ app.get("/email-cantina", (req, res) => {
   `);
 });
 
-/**
- * Dispara felicitações de aniversário via WhatsApp para quem faz aniversário HOJE.
- * Planilha: 13QUY… (aba "Cadastro Oficial")
- * Colunas: C = nascimento, G = telefone, V = status ("Aniversário Enviado - dd/MM/yyyy HH:mm")
- *
- * Chamada sugerida no endpoint:
- *   await enviarComunicadoAniversarioHoje({
- *     getSheetsClient: (typeof getSheetsClient === "function" ? getSheetsClient : undefined),
- *     sendWhatsAppTemplate: (typeof enviarWhatsAppTemplate === "function" ? enviarWhatsAppTemplate : undefined),
- *   });
- */
+///nova função para disparo de mensagem de aniversario.
 async function enviarComunicadoAniversarioHoje(opts = {}) {
   // ===== CONFIG =====
   const SPREADSHEET_ID = "13QUYrH1iRV1TwyVQhtCHjXy77XxB9Eu7R_wsCZIJDwk";
-  const SHEET_NAME = "Cadastro Oficial";   // com espaço
-  const RANGE_LER = `${SHEET_NAME}!A2:V`;  // pega até V
+  const SHEET_NAME = "Cadastro Oficial";        // com espaço
+  const RANGE_LER = `${SHEET_NAME}!A2:V`;       // C=nascimento, G=telefone, V=status
   const IDX = { NASC: 2, TEL: 6, ST_ANIV: 21 }; // A=0 ... V=21
   const COL_STATUS = "V";
-  //const TEMPLATE = "eac_comunicado_aniversario";
-  const TEMPLATE = "eac_boasvindas_v2";
+  const TEMPLATE_NAME = process.env.WHATSAPP_TEMPLATE_ANIV_NAME || "eac_comunicado_aniversario";
   const LIMITE_DIARIO = Number(process.env.LIMITE_DIARIO_ANIV || 200);
   const TZ = "America/Sao_Paulo";
 
+  // ===== FALLBACKS/DEPS =====
+  const ax = (typeof axios !== "undefined") ? axios : require("axios");
+  const getSheets = opts.getSheetsClient || (typeof getSheetsClient === "function" ? getSheetsClient : (() => {
+    const { google: g } = require("googleapis");
+    const creds = JSON.parse(process.env.GOOGLE_CREDENTIALS || "{}");
+    const jwt = new g.auth.JWT(creds.client_email, null, creds.private_key, ["https://www.googleapis.com/auth/spreadsheets"]);
+    return g.sheets({ version: "v4", auth: jwt });
+  }));
+  const sendWA = opts.sendWhatsAppTemplate || (typeof enviarWhatsAppTemplate === "function"
+    ? enviarWhatsAppTemplate
+    : async (numero, templateName, variaveis = []) => {
+        const token = process.env.WHATSAPP_TOKEN;
+        const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+        if (!token || !phoneNumberId) throw new Error("WHATSAPP_TOKEN/WHATSAPP_PHONE_NUMBER_ID não configurados.");
+        const url = `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`;
+        const body = {
+          messaging_product: "whatsapp",
+          to: numero,
+          type: "template",
+          template: {
+            name: templateName,
+            language: { code: "pt_BR" },
+            components: (variaveis && variaveis.length)
+              ? [{ type: "body", parameters: variaveis.map(v => ({ type: "text", text: `${v}` })) }]
+              : undefined,
+          },
+        };
+        const resp = await ax.post(url, body, {
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          timeout: 20000,
+        });
+        return resp?.data?.messages?.[0]?.id;
+      }
+  );
+
   // ===== HELPERS =====
+  const letterToIdx = L => (String(L).trim().toUpperCase().charCodeAt(0) - 65);
   function normTel(raw) {
     if (!raw) return "";
     const digits = String(raw).replace(/\D/g, "").replace(/^0+/, "");
     return digits.startsWith("55") ? digits : `55${digits}`;
   }
-
-  // hoje (Y-M-D) no fuso de SP convertido para UTC, para comparação sem ruído de horário
   function hojeUTC() {
     const now = new Date();
     const local = new Date(now.toLocaleString("en-US", { timeZone: TZ }));
     return new Date(Date.UTC(local.getFullYear(), local.getMonth(), local.getDate()));
   }
-
-  // aceita string "dd/mm/aaaa", "yyyy-mm-dd" ou serial numérico do Sheets
   function parseDateFromSheet(val) {
     if (val == null || val === "") return null;
-
     if (val instanceof Date && !isNaN(val)) return val;
-
     if (typeof val === "number") {
-      // serial Google Sheets -> Date (UTC)
-      const ms = Math.round((val - 25569) * 86400 * 1000);
+      const ms = Math.round((val - 25569) * 86400 * 1000); // serial Sheets -> ms
       return new Date(ms);
     }
-
     const s = String(val).trim();
-
-    // dd/mm/aaaa ou dd/mm/aa
     const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
     if (m) {
       let [_, dd, mm, yyyy] = m;
-      dd = parseInt(dd, 10);
-      mm = parseInt(mm, 10) - 1;
+      dd = parseInt(dd, 10); mm = parseInt(mm, 10) - 1;
       yyyy = String(yyyy).length === 2 ? 2000 + parseInt(yyyy, 10) : parseInt(yyyy, 10);
       return new Date(Date.UTC(yyyy, mm, dd));
     }
-
-    // ISO yyyy-mm-dd
     const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (iso) {
-      const yyyy = parseInt(iso[1], 10);
-      const mm = parseInt(iso[2], 10) - 1;
-      const dd = parseInt(iso[3], 10);
-      return new Date(Date.UTC(yyyy, mm, dd));
-    }
-
+    if (iso) return new Date(Date.UTC(+iso[1], +iso[2]-1, +iso[3]));
     const d = new Date(s);
     return isNaN(d) ? null : d;
   }
-
-  function isBirthdayTodayVal(sheetVal, refUTC) {
+  const isBirthdayTodayVal = (sheetVal, refUTC) => {
     const d = parseDateFromSheet(sheetVal);
-    if (!d) return false;
-    return d.getUTCMonth() === refUTC.getUTCMonth() && d.getUTCDate() === refUTC.getUTCDate();
-  }
+    return !!d && d.getUTCMonth() === refUTC.getUTCMonth() && d.getUTCDate() === refUTC.getUTCDate();
+  };
 
-  function stamp() {
-    // dd/mm/aaaa HH:mm no fuso de SP
-    return new Date().toLocaleString("pt-BR", { timeZone: TZ }).replace(/:\d{2}$/, "");
-  }
+  // ===== DETECTAR QUANTOS PARÂMETROS O TEMPLATE EXIGE =====
+  async function getTemplateParamCount(templateName) {
+    try {
+      const bizId = process.env.WHATSAPP_BUSINESS_ID;
+      const token = process.env.WHATSAPP_TOKEN;
+      if (!bizId || !token) return null; // sem business ID, pula a auto-detecção
 
-  // ===== DEPENDÊNCIAS (fallbacks se não vierem via opts/globais) =====
-  const getSheets = opts.getSheetsClient || (typeof getSheetsClient === "function" ? getSheetsClient : (() => {
-    const { google: g } = require("googleapis");
-    const creds = JSON.parse(process.env.GOOGLE_CREDENTIALS || "{}");
-    if (!creds.client_email || !creds.private_key) {
-      throw new Error("GOOGLE_CREDENTIALS inválido no fallback (client_email/private_key ausentes).");
+      const url = `https://graph.facebook.com/v20.0/${bizId}/message_templates?name=${encodeURIComponent(templateName)}&limit=1`;
+      const { data } = await ax.get(url, {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 15000,
+      });
+      const tpl = data?.data?.[0];
+      if (!tpl) return null;
+
+      // Procura componente "BODY" e conta marcadores {{1}}, {{2}}...
+      const body = (tpl.components || []).find(c => (c.type || "").toUpperCase() === "BODY");
+      const text = body?.text || "";
+      const matches = Array.from(text.matchAll(/\{\{\s*(\d+)\s*\}\}/g)).map(m => Number(m[1]));
+      if (!matches.length) return 0;
+      return Math.max(...matches);
+    } catch (e) {
+      console.log("[TPL] Falha ao detectar parâmetros do template:", e?.response?.data || e?.message);
+      return null;
     }
-    const jwt = new g.auth.JWT(creds.client_email, null, creds.private_key, [
-      "https://www.googleapis.com/auth/spreadsheets",
-    ]);
-    return g.sheets({ version: "v4", auth: jwt });
-  }));
+  }
 
-  const sendWA = opts.sendWhatsAppTemplate || (typeof enviarWhatsAppTemplate === "function" ? enviarWhatsAppTemplate : (async (numero, templateName, variaveis = []) => {
-    const ax = (typeof axios !== "undefined") ? axios : require("axios");
-    const token = process.env.WHATSAPP_TOKEN;
-    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-    if (!token || !phoneNumberId) throw new Error("WHATSAPP_TOKEN/WHATSAPP_PHONE_NUMBER_ID não configurados.");
-    const url = `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`;
-    const body = {
-      messaging_product: "whatsapp",
-      to: numero,
-      type: "template",
-      template: {
-        name: templateName,
-        language: { code: "pt_BR" },
-        components: variaveis.length
-          ? [{ type: "body", parameters: variaveis.map(v => ({ type: "text", text: `${v}` })) }]
-          : undefined,
-      },
-    };
-    const resp = await ax.post(url, body, {
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      timeout: 20000,
-    });
-    return resp?.data?.messages?.[0]?.id;
-  }));
+  // Lê configuração manual de colunas/defaults
+  const COLS_VAR = (process.env.TEMPLATE_ANIV_COLS || "").split(/[;,]/).map(s => s.trim().toUpperCase()).filter(Boolean);
+  const DEFAULTS_VAR = (process.env.TEMPLATE_ANIV_DEFAULTS || "").split(/[;,]/);
+
+  function buildParamsFromRow(r, neededCount) {
+    let params = [];
+    // se veio mapeamento de colunas, usa na ordem informada
+    if (COLS_VAR.length) {
+      params = COLS_VAR.map((L, i) => {
+        const idx = letterToIdx(L);
+        const val = (r[idx] ?? "").toString().trim();
+        return val || (DEFAULTS_VAR[i] || "");
+      });
+    }
+    // Ajusta o tamanho para o exigido: corta ou preenche
+    if (typeof neededCount === "number") {
+      if (params.length > neededCount) params = params.slice(0, neededCount);
+      while (params.length < neededCount) {
+        const i = params.length;
+        params.push(DEFAULTS_VAR[i] || "");
+      }
+    }
+    return params;
+  }
+
+  // Descobre quantos params precisa
+  const detectedCount = await getTemplateParamCount(TEMPLATE_NAME);
+  const neededCount = (detectedCount != null)
+    ? detectedCount
+    : (COLS_VAR.length || 0); // fallback: usa qtas colunas você mapeou
 
   // ===== PROCESSO =====
   console.log("[Aniversário] Lendo", SPREADSHEET_ID, RANGE_LER);
@@ -1523,7 +1542,7 @@ async function enviarComunicadoAniversarioHoje(opts = {}) {
   const read = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
     range: RANGE_LER,
-    valueRenderOption: "FORMATTED_VALUE",   // <- importante p/ vir "dd/mm/aaaa"
+    valueRenderOption: "FORMATTED_VALUE",
     dateTimeRenderOption: "FORMATTED_STRING",
   });
 
@@ -1542,36 +1561,25 @@ async function enviarComunicadoAniversarioHoje(opts = {}) {
     if (enviados >= LIMITE_DIARIO) break;
 
     const r = rows[i];
-    const nascVal = r[IDX.NASC];                // C
-    const telRaw  = r[IDX.TEL];                 // G
-    const st      = (r[IDX.ST_ANIV] || "").toString().trim(); // V
+    const nascVal = r[IDX.NASC];
+    const telRaw  = r[IDX.TEL];
+    const st      = (r[IDX.ST_ANIV] || "").toString().trim();
 
-    // já enviado
-    if (st.toLowerCase().startsWith("aniversário enviado -")) {
-      if (process.env.DEBUG_ANIV === "true") console.log(`[skip] ${i+2}: já enviado (${st})`);
-      continue;
-    }
+    if (st.toLowerCase().startsWith("aniversário enviado -")) continue;
+    if (!isBirthdayTodayVal(nascVal, hoje)) continue;
 
-    // é aniversário hoje?
-    if (!isBirthdayTodayVal(nascVal, hoje)) {
-      if (process.env.DEBUG_ANIV === "true") console.log(`[skip] ${i+2}: não é hoje (${nascVal})`);
-      continue;
-    }
-
-    // telefone
     const numero = normTel(telRaw);
-    if (!numero) {
-      if (process.env.DEBUG_ANIV === "true") console.log(`[skip] ${i+2}: telefone inválido (${telRaw})`);
-      continue;
-    }
+    if (!numero) continue;
 
-    // envio
+    // Monta as variáveis conforme o template
+    const paramsText = buildParamsFromRow(r, neededCount);
+
     try {
-      await sendWA(numero, TEMPLATE /*, [variáveis do template se precisar] */);
-      const row = i + 2; // A2 -> linha 2
+      await sendWA(numero, TEMPLATE_NAME, paramsText);
+      const row = i + 2;
       updates.push({
         range: `${SHEET_NAME}!${COL_STATUS}${row}:${COL_STATUS}${row}`,
-        values: [[`Aniversário Enviado - ${stamp()}`]],
+        values: [[`Aniversário Enviado - ${new Date().toLocaleString("pt-BR", { timeZone: TZ }).replace(/:\d{2}$/, "")}`]],
       });
       enviados++;
     } catch (e) {
@@ -1598,6 +1606,7 @@ async function enviarComunicadoAniversarioHoje(opts = {}) {
   console.log(`✅ Resultado Aniversário: enviados=${enviados}, erros=${erros}`);
   return { enviados, erros };
 }
+
 
 // Inicialização do servidor
 const PORT = process.env.PORT || 3000;
