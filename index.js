@@ -711,8 +711,8 @@ app.get("/disparo", async (req, res) => {
       return res.status(200).send("✅ Comunicado geral enviado com sucesso.");
     }
 
-    if (tipo === "aniversariante") {
-      console.log("🚀 Disparando mensagem de aniversario para contatos da fila_envio...");
+    if (tipo === "aniversario") {
+      console.log("🚀 Disparando Felicitações de Aniversário (hoje)…");
       await enviarComunicadoAniversarioHoje();
       return res.status(200).send("✅ Mensagem de Aniversário enviado com sucesso.");
     }
