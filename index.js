@@ -711,6 +711,12 @@ app.get("/disparo", async (req, res) => {
       return res.status(200).send("✅ Comunicado geral enviado com sucesso.");
     }
 
+    if (tipo === "aniversariante") {
+      console.log("🚀 Disparando mensagem de aniversario para contatos da fila_envio...");
+      await enviarComunicadoAniversarioHoje();
+      return res.status(200).send("✅ Mensagem de Aniversário enviado com sucesso.");
+    }
+  
     console.log("📢 Tipo de disparo inválido ou não informado.");
     res.status(400).send("❌ Tipo de disparo inválido. Use tipo=boasvindas ou tipo=eventos.");
   } catch (erro) {
@@ -1340,6 +1346,124 @@ app.get("/email-cantina", (req, res) => {
     </html>
   `);
 });
+
+/**
+ * Dispara felicitações de aniversário via WhatsApp para quem faz aniversário hoje.
+ * - Planilha: 13QUYrH1iRV1TwyVQhtCHjXy77XxB9Eu7R_wsCZIJDwk
+ * - Aba: "Cadastro Oficial"
+ * - Colunas: C=nascimento, G=telefone, V=status ("Aniversário Enviado - dd/MM/yyyy HH:mm")
+ *
+ * Requisitos:
+ * - Template WhatsApp: eac_comunicado_aniversario
+ * - FUNÇÕES OPCIONAIS no opts:
+ *    - opts.getSheetsClient: retorna client do Google Sheets (default: global getSheetsClient)
+ *    - opts.sendWhatsAppTemplate(numero, templateName, variaveis?): envia WA (default: global enviarWhatsAppTemplate)
+ * - ENV esperados: GOOGLE_CREDENTIALS, WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID
+ */
+async function enviarComunicadoAniversarioHoje(opts = {}) {
+  const SPREADSHEET_ID = "13QUYrH1iRV1TwyVQhtCHjXy77XxB9Eu7R_wsCZIJDwk";
+  const SHEET_NAME = "Cadastro Oficial"; // com espaço
+  const RANGE_LER = `${SHEET_NAME}!A2:V`; // pega até V
+  const IDX = { NASC: 2, TEL: 6, ST_ANIV: 21 }; // A=0 ... V=21
+  const COL_STATUS = "V";
+  //const TEMPLATE = "eac_comunicado_aniversario";
+  const TEMPLATE = "eac_comunicado_geral_v2";
+  const LIMITE_DIARIO = Number(process.env.LIMITE_DIARIO_ANIV || 200);
+  const TZ = "America/Sao_Paulo";
+
+  // Helpers locais para não colidir com o resto do index
+  const tzNow = () => new Date(new Date().toLocaleString("en-US", { timeZone: TZ }));
+  const isBdayToday = (val, ref) => {
+    if (!val) return false;
+    const d = new Date(val);
+    if (isNaN(d)) return false;
+    return d.getMonth() === ref.getMonth() && d.getDate() === ref.getDate();
+  };
+  const stamp = () => new Date().toLocaleString("pt-BR", { timeZone: TZ }).replace(/:\d{2}$/, "");
+  const normTel = raw => {
+    if (!raw) return "";
+    const digits = String(raw).replace(/\D/g, "").replace(/^0+/, "");
+    return digits.startsWith("55") ? digits : `55${digits}`;
+  };
+
+  // Integrações (reaproveita globais se existirem)
+  const getSheets = opts.getSheetsClient || (typeof getSheetsClient === "function" ? getSheetsClient : null);
+  const sendWA = opts.sendWhatsAppTemplate || (typeof enviarWhatsAppTemplate === "function" ? enviarWhatsAppTemplate : null);
+  if (!getSheets) throw new Error("getSheetsClient indisponível. Passe via opts.getSheetsClient ou defina global.");
+  if (!sendWA) throw new Error("enviarWhatsAppTemplate indisponível. Passe via opts.sendWhatsAppTemplate ou defina global.");
+
+  console.log("[Aniversário] Lendo", SPREADSHEET_ID, RANGE_LER);
+  const sheets = getSheets();
+  const read = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: RANGE_LER,
+    valueRenderOption: "UNFORMATTED_VALUE",
+    dateTimeRenderOption: "FORMATTED_STRING",
+  });
+
+  const rows = read.data.values || [];
+  if (!rows.length) {
+    console.log("⚠️ Cadastro vazio para aniversário.");
+    return { enviados: 0, erros: 0 };
+  }
+
+  const hoje = tzNow();
+  let enviados = 0;
+  let erros = 0;
+  const updates = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    if (enviados >= LIMITE_DIARIO) break;
+
+    const r = rows[i];
+    const nasc = r[IDX.NASC];
+    const telRaw = r[IDX.TEL];
+    const st = (r[IDX.ST_ANIV] || "").toString().trim();
+
+    // já enviado
+    if (st.toLowerCase().startsWith("aniversário enviado -")) continue;
+
+    // não é aniversariante hoje
+    if (!isBdayToday(nasc, hoje)) continue;
+
+    const numero = normTel(telRaw);
+    if (!numero) {
+      console.log(`⚠️ Sem telefone válido na linha ${i + 2}.`);
+      continue;
+    }
+
+    try {
+      await sendWA(numero, TEMPLATE /*, [variaveisOpc] */);
+      const row = i + 2; // A2 -> linha 2
+      updates.push({
+        range: `${SHEET_NAME}!${COL_STATUS}${row}:${COL_STATUS}${row}`,
+        values: [[`Aniversário Enviado - ${stamp()}`]],
+      });
+      enviados++;
+    } catch (e) {
+      console.error("❌ Erro WA aniversário", numero, e?.response?.data || e?.message || e);
+      const row = i + 2;
+      updates.push({
+        range: `${SHEET_NAME}!${COL_STATUS}${row}:${COL_STATUS}${row}`,
+        values: [["Erro"]],
+      });
+      erros++;
+    }
+  }
+
+  if (updates.length) {
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: { valueInputOption: "RAW", data: updates },
+    });
+    console.log(`📝 Atualizadas ${updates.length} células em ${COL_STATUS} (aniversário).`);
+  } else {
+    console.log("ℹ️ Nada para atualizar em V (aniversário).");
+  }
+
+  console.log(`✅ Resultado Aniversário: enviados=${enviados}, erros=${erros}`);
+  return { enviados, erros };
+}
 
 
 
