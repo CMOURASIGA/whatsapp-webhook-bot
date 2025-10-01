@@ -1412,7 +1412,8 @@ async function enviarComunicadoAniversarioHoje(opts = {}) {
   const RANGE_LER = `${SHEET_NAME}!A2:V`;  // pega até V
   const IDX = { NASC: 2, TEL: 6, ST_ANIV: 21 }; // A=0 ... V=21
   const COL_STATUS = "V";
-  const TEMPLATE = "eac_comunicado_aniversario";
+  //const TEMPLATE = "eac_comunicado_aniversario";
+  const TEMPLATE = "eac_boasvindas_v2";
   const LIMITE_DIARIO = Number(process.env.LIMITE_DIARIO_ANIV || 200);
   const TZ = "America/Sao_Paulo";
 
