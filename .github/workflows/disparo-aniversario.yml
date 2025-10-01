@@ -1,0 +1,42 @@
+name: Disparo aniversario (09:00 BRT)
+
+on:
+  schedule:
+    # 12:00 UTC = 09:00 BRT (sem horário de verão)
+    - cron: "0 12 * * *"
+  workflow_dispatch: {}   # permite rodar manualmente pelo botão "Run workflow"
+
+jobs:
+  call-endpoint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mostrar hora do job
+        run: |
+          date -u +"UTC:   %Y-%m-%d %H:%M:%S"
+          TZ=America/Sao_Paulo date +"BRT:   %Y-%m-%d %H:%M:%S"
+
+      - name: Aquecer serviço no Render (warmup)
+        run: |
+          curl -sS -m 20 -o /dev/null -w "HTTP %{http_code}\n" \
+            "https://whatsapp-webhook-bot-ansa.onrender.com/painel"
+
+      - name: Disparar aniversário
+        env:
+          DISPARO_KEY: ${{ secrets.CHAVE_DISPARO }}
+        run: |
+          set -e
+          URL="https://whatsapp-webhook-bot-ansa.onrender.com/disparo?chave=${DISPARO_KEY}&tipo=aniversario"
+          echo "Chamando: $URL"
+          # 3 tentativas com backoff simples caso o Render ainda esteja acordando
+          for i in 1 2 3; do
+            STATUS=$(curl -sS -m 40 -w "%{http_code}" -o resp.json "$URL") || true
+            echo "Tentativa $i -> HTTP $STATUS"
+            if [ "$STATUS" = "200" ]; then
+              cat resp.json
+              exit 0
+            fi
+            sleep $((i*5))
+          done
+          echo "Falhou após 3 tentativas. Última resposta:"
+          cat resp.json || true
+          exit 1
