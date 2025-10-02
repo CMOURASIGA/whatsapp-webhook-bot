@@ -9,10 +9,47 @@ const cron = require("node-cron");
 const app = express();
 app.use(express.json());
 
-const VERIFY_TOKEN = "meu_token_webhook";
-const token = process.env.TOKEN_WHATSAPP;
-const phone_number_id = "572870979253681";
+// Middleware compatível para aceitar Authorization: Bearer <CHAVE_DISPARO>
+// em /disparo sem quebrar o uso atual por query string ?chave=
+app.use((req, res, next) => {
+  try {
+    if (req.path === "/disparo") {
+      const authHeader = req.headers.authorization || "";
+      const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+      if (bearer && !req.query.chave) {
+        req.query.chave = bearer; // reaproveita a verificação existente da rota
+      }
+    }
+    // Proteção opcional do painel via Bearer (desativada por padrão)
+    if (req.path === "/painel" && String(process.env.PAINEL_REQUIRE_AUTH).toLowerCase() === "true") {
+      const authHeader = req.headers.authorization || "";
+      const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+      if (!process.env.CHAVE_DISPARO || bearer !== process.env.CHAVE_DISPARO) {
+        return res.status(401).send("Acesso não autorizado.");
+      }
+    }
+  } catch (e) {
+    // Em caso de erro no middleware, não bloqueia a requisição
+  }
+  next();
+});
+
+const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "";
+const token = process.env.WHATSAPP_TOKEN || process.env.TOKEN_WHATSAPP || "";
+const phone_number_id = process.env.WHATSAPP_PHONE_NUMBER_ID || "572870979253681";
 const TELEFONE_CONTATO_HUMANO = process.env.TELEFONE_CONTATO_HUMANO;
+
+// Healthcheck e verificação do webhook (GET)
+app.get("/healthz", (req, res) => res.json({ ok: true }));
+app.get("/webhook", (req, res) => {
+  const mode = req.query["hub.mode"];
+  const verifyToken = req.query["hub.verify_token"];
+  const challenge = req.query["hub.challenge"];
+  if (mode === "subscribe" && verifyToken && VERIFY_TOKEN && verifyToken === VERIFY_TOKEN) {
+    return res.status(200).send(challenge);
+  }
+  return res.sendStatus(403);
+});
 
 // --- INÍCIO DA ADIÇÃO ---
 function getRandomMessage(messages) {
