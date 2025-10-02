@@ -51,6 +51,56 @@ app.get("/webhook", (req, res) => {
   return res.sendStatus(403);
 });
 
+// ===== Modo seguro de testes (staging) =====
+// DRY_RUN: evita chamadas reais ao WhatsApp; devolve resposta simulada
+// ENABLE_CRON=false: desativa agendamento de crons
+try {
+  const isDryRun = String(process.env.DRY_RUN || "").toLowerCase() === "true" || !token;
+  if (isDryRun) {
+    axios.interceptors.request.use((config) => {
+      const url = String(config?.url || "");
+      if (url.includes("graph.facebook.com") && url.includes("/messages")) {
+        console.log("[DRY_RUN] Bloqueando envio WhatsApp:", url);
+        console.log("[DRY_RUN] Payload:", JSON.stringify(config.data || {}, null, 2));
+        return Promise.reject({ __dryRun: true, config });
+      }
+      return config;
+    });
+    axios.interceptors.response.use(
+      (resp) => resp,
+      (err) => {
+        if (err && err.__dryRun) {
+          // Emula uma resposta de sucesso do WhatsApp
+          return Promise.resolve({
+            status: 200,
+            statusText: "OK",
+            data: { messages: [{ id: "dry-run" }] },
+            headers: {},
+            config: err.config,
+          });
+        }
+        return Promise.reject(err);
+      }
+    );
+    console.log("[DRY_RUN] Ativado (sem envios reais).\n");
+  }
+} catch (e) {
+  console.warn("[DRY_RUN] Interceptor não aplicado:", e?.message || e);
+}
+
+try {
+  if (String(process.env.ENABLE_CRON || "").toLowerCase() === "false") {
+    const origSchedule = cron.schedule;
+    cron.schedule = (expr, fn, opts) => {
+      console.log(`[CRON] Desativado (ENABLE_CRON=false) -> ${expr}`);
+      return { start() {}, stop() {}, destroy() {} };
+    };
+    console.log("[CRON] Todos os agendamentos estão desativados nesta instância.\n");
+  }
+} catch (e) {
+  console.warn("[CRON] Falha ao desativar scheduler:", e?.message || e);
+}
+
 // --- INÍCIO DA ADIÇÃO ---
 function getRandomMessage(messages) {
   if (Array.isArray(messages)) {
