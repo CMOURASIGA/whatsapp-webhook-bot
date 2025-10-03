@@ -656,6 +656,22 @@ async function verificarEventosParaLembrete() {
         resource: { values: updates },
       });
     }
+    if (updatesEncontreiros.length) {
+      try {
+        if (String(process.env.SHEETS_READ_ONLY||"").toLowerCase() === "true") {
+          console.log(`[Sheets] READ_ONLY ativo - ${updatesEncontreiros.length} células não serão gravadas (Encontreiros).`);
+        } else {
+          await sheets.spreadsheets.values.batchUpdate({
+            spreadsheetId: planilhaEncontreirosId,
+            requestBody: { valueInputOption: "RAW", data: updatesEncontreiros }
+          });
+          console.log(`[Sheets] Encontreiros batchUpdate: ${updatesEncontreiros.length} células.`);
+        }
+      } catch (e) {
+        console.warn("[Sheets] Falha batchUpdate Encontreiros:", e?.response?.status || e?.message || e);
+      }
+    }
+
   } catch (erro) {
     console.error("Erro ao verificar eventos:", erro);
   }
@@ -1414,6 +1430,7 @@ async function dispararComunicadoGeralFila() {
     const rowsCadastro = resCadastro.data.values || [];
     console.log(`📄 [Cadastro Oficial] Registros: ${rowsCadastro.length}`);
 
+    const updatesCadastro = [];
     for (let i = 0; i < rowsCadastro.length; i++) {
       const numero = rowsCadastro[i][0];
       const status = rowsCadastro[i][14];
@@ -1447,21 +1464,28 @@ async function dispararComunicadoGeralFila() {
         numerosJaEnviados.add(numero);
 
         const updateRange = `Cadastro Oficial!U${i + 2}`;
-        await sheets.spreadsheets.values.update({
-          spreadsheetId: planilhaCadastroId,
-          range: updateRange,
-          valueInputOption: "RAW",
-          resource: { values: [["Enviado"]] },
-        });
+        updatesCadastro.push({ range: `Cadastro Oficial!U${i + 2}:U${i + 2}`, values: [["Enviado"]] });
       } catch (erroEnvio) {
         console.error(`❌ [Cadastro] Erro ao enviar para ${numero}:`, erroEnvio.message);
         const updateRange = `Cadastro Oficial!U${i + 2}`;
-        await sheets.spreadsheets.values.update({
-          spreadsheetId: planilhaCadastroId,
-          range: updateRange,
-          valueInputOption: "RAW",
-          resource: { values: [["Erro"]] },
-        });
+        updatesCadastro.push({ range: `Cadastro Oficial!U${i + 2}:U${i + 2}`, values: [["Erro"]] });
+      }
+    }
+
+    // Commit batched updates Cadastro Oficial
+    if (updatesCadastro.length) {
+      try {
+        if (String(process.env.SHEETS_READ_ONLY||"").toLowerCase() === "true") {
+          console.log(`[Sheets] READ_ONLY ativo - ${updatesCadastro.length} células não serão gravadas (Cadastro).`);
+        } else {
+          await sheets.spreadsheets.values.batchUpdate({
+            spreadsheetId: planilhaCadastroId,
+            requestBody: { valueInputOption: "RAW", data: updatesCadastro }
+          });
+          console.log(`[Sheets] Cadastro Oficial batchUpdate: ${updatesCadastro.length} células.`);
+        }
+      } catch (e) {
+        console.warn("[Sheets] Falha batchUpdate Cadastro:", e?.response?.status || e?.message || e);
       }
     }
 
@@ -1477,6 +1501,7 @@ async function dispararComunicadoGeralFila() {
     const rowsEncontreiros = resEncontreiros.data.values || [];
     console.log(`📄 [Encontreiros] Registros: ${rowsEncontreiros.length}`);
 
+    const updatesEncontreiros = [];
     for (let i = 0; i < rowsEncontreiros.length; i++) {
       const numero = rowsEncontreiros[i][0];
       const status = rowsEncontreiros[i][2];
@@ -1510,21 +1535,11 @@ async function dispararComunicadoGeralFila() {
         numerosJaEnviados.add(numero);
 
         const updateRange = `Fila_Envio!H${i + 2}`;
-        await sheets.spreadsheets.values.update({
-          spreadsheetId: planilhaEncontreirosId,
-          range: updateRange,
-          valueInputOption: "RAW",
-          resource: { values: [["Enviado"]] },
-        });
+        updatesEncontreiros.push({ range: `Fila_Envio!H${i + 2}:H${i + 2}`, values: [["Enviado"]] });
       } catch (erroEnvio) {
         console.error(`❌ [Encontreiros] Erro ao enviar para ${numero}:`, erroEnvio.message);
         const updateRange = `Fila_Envio!H${i + 2}`;
-        await sheets.spreadsheets.values.update({
-          spreadsheetId: planilhaEncontreirosId,
-          range: updateRange,
-          valueInputOption: "RAW",
-          resource: { values: [["Erro"]] },
-        });
+        updatesEncontreiros.push({ range: `Fila_Envio!H${i + 2}:H${i + 2}`, values: [["Erro"]] });
       }
     }
 
