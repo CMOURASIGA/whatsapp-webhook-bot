@@ -17,6 +17,35 @@ const TEMPLATE_ANIV_LANG = (process.env.WHATSAPP_TEMPLATE_ANIV_LANG || TEMPLATE_
 const GRAPH_VERSION = process.env.GRAPH_API_VERSION || "v20.0";
 const graphUrl = (path) => `https://graph.facebook.com/${GRAPH_VERSION}/${path}`;
 
+// Throttling/Retry – controla ritmo de envios ao WhatsApp e backoff básico
+const THROTTLE_CONCURRENCY = Number(process.env.THROTTLE_CONCURRENCY || 2);
+const THROTTLE_DELAY_MS = Number(process.env.THROTTLE_DELAY_MS || 150);
+const RETRY_MAX = Number(process.env.RETRY_MAX || 2);
+const RETRY_BASE_MS = Number(process.env.RETRY_BASE_MS || 500);
+
+let __wa_inflight = 0;
+const __wa_waiting = [];
+const delay = (ms) => new Promise(r => setTimeout(r, ms));
+async function acquireSlot() {
+  return new Promise(resolve => {
+    const tryGet = async () => {
+      if (__wa_inflight < THROTTLE_CONCURRENCY) {
+        __wa_inflight++;
+        if (THROTTLE_DELAY_MS > 0) await delay(THROTTLE_DELAY_MS);
+        resolve();
+      } else {
+        __wa_waiting.push(tryGet);
+      }
+    };
+    tryGet();
+  });
+}
+function releaseSlot() {
+  __wa_inflight = Math.max(0, __wa_inflight - 1);
+  const next = __wa_waiting.shift();
+  if (next) next();
+}
+
 // Middleware compatível para aceitar Authorization: Bearer <CHAVE_DISPARO>
 // em /disparo sem quebrar o uso atual por query string ?chave=
 app.use((req, res, next) => {
@@ -59,6 +88,21 @@ app.get("/webhook", (req, res) => {
   return res.sendStatus(403);
 });
 
+// Rota POST /disparo (compatível): redireciona para GET mantendo chave/tipo
+app.post("/disparo", express.json(), (req, res) => {
+  try {
+    const authHeader = req.headers.authorization || "";
+    const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+    const chave = (req.body && req.body.chave) || req.query.chave || bearer || "";
+    const tipo = (req.body && req.body.tipo) || req.query.tipo || "";
+    if (!chave || !tipo) return res.status(400).send("Parâmetros obrigatórios ausentes.");
+    const url = `/disparo?chave=${encodeURIComponent(chave)}&tipo=${encodeURIComponent(tipo)}`;
+    return res.redirect(307, url);
+  } catch (e) {
+    return res.status(500).send("Erro ao processar POST /disparo");
+  }
+});
+
 // ===== Modo seguro de testes (staging) =====
 // DRY_RUN: evita chamadas reais ao WhatsApp; devolve resposta simulada
 // ENABLE_CRON=false: desativa agendamento de crons
@@ -95,6 +139,42 @@ try {
 } catch (e) {
   console.warn("[DRY_RUN] Interceptor não aplicado:", e?.message || e);
 }
+
+// Interceptores para throttling e retry (somente endpoints de /messages da Graph)
+axios.interceptors.request.use(async (config) => {
+  try {
+    const url = String(config?.url || "");
+    if (url.includes("graph.facebook.com") && url.includes("/messages")) {
+      await acquireSlot();
+      config.__wa_queued = true;
+      config.__wa_attempt = (config.__wa_attempt || 0) + 1;
+    }
+  } catch {}
+  return config;
+});
+
+axios.interceptors.response.use(async (resp) => {
+  try { if (resp?.config?.__wa_queued) releaseSlot(); } catch {}
+  return resp;
+}, async (err) => {
+  const cfg = err?.config || {};
+  try { if (cfg.__wa_queued) releaseSlot(); } catch {}
+
+  const status = err?.response?.status;
+  const url = String(cfg?.url || "");
+  const isMessages = url.includes("graph.facebook.com") && url.includes("/messages");
+  const attempt = Number(cfg.__wa_attempt || 1);
+  const canRetry = isMessages && (status === 429 || (status >= 500 && status < 600)) && attempt <= RETRY_MAX;
+
+  if (canRetry) {
+    const backoff = RETRY_BASE_MS * Math.pow(2, attempt - 1);
+    console.warn(`[WA-RETRY] status=${status} attempt=${attempt} backoff=${backoff}ms`);
+    await delay(backoff);
+    cfg.__wa_attempt = attempt + 1;
+    return axios(cfg);
+  }
+  return Promise.reject(err);
+});
 
 try {
   if (String(process.env.ENABLE_CRON || "").toLowerCase() === "false") {
@@ -1117,10 +1197,19 @@ app.get("/painel", (req, res) => {
 
       <script>
         function disparar(tipo, endpoint) {
-          fetch(endpoint)
-            .then(response => response.text())
+          try {
+            const u = new URL(endpoint, window.location.origin);
+            const tipoParam = u.searchParams.get('tipo') || tipo;
+            const chave = u.searchParams.get('chave');
+            fetch('/disparo', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ tipo: tipoParam, chave })
+            })
+            .then(r => r.text())
             .then(msg => alert(msg))
             .catch(err => alert('Erro: ' + err));
+          } catch (e) { alert('Erro: ' + e); }
         }
 
         function adicionarDisparo() {
@@ -1509,6 +1598,32 @@ async function enviarComunicadoAniversarioHoje(opts = {}) {
     const jwt = new g.auth.JWT(creds.client_email, null, creds.private_key, ["https://www.googleapis.com/auth/spreadsheets"]);
     return g.sheets({ version: "v4", auth: jwt });
   }));
+  // Auto-detecta idioma do template de aniversário quando não definido por env
+  async function __tplDetectLang(templateName) {
+    try {
+      const bizId = (process.env.WHATSAPP_BUSINESS_ID || '').trim();
+      const token = (process.env.WHATSAPP_TOKEN || '').trim();
+      if (!bizId || !token) return null;
+      const url = `https://graph.facebook.com/v20.0/${bizId}/message_templates?name=${encodeURIComponent(templateName)}&limit=1`;
+      const { data } = await ax.get(url, { headers: { Authorization: `Bearer ${token}` }, timeout: 15000 });
+      const tpl = data?.data?.[0];
+      return tpl?.language || null;
+    } catch (e) {
+      console.warn('[TPL] Falha ao obter idioma do template:', e?.response?.data || e?.message);
+      return null;
+    }
+  }
+  const __tplLangCache = { v: null, t: 0 };
+  async function __getResolvedAnivLang(name) {
+    const envLang = String(process.env.WHATSAPP_TEMPLATE_ANIV_LANG || '').trim();
+    if (envLang) return envLang;
+    const now = Date.now();
+    if (__tplLangCache.v && now - __tplLangCache.t < 15 * 60 * 1000) return __tplLangCache.v;
+    const detected = await __tplDetectLang(name);
+    __tplLangCache.v = detected || TEMPLATE_ANIV_LANG || TEMPLATE_LANG;
+    __tplLangCache.t = now;
+    return __tplLangCache.v;
+  }
   const sendWA = opts.sendWhatsAppTemplate || (typeof enviarWhatsAppTemplate === "function"
     ? enviarWhatsAppTemplate
     : async (numero, templateName, variaveis = []) => {
@@ -1522,7 +1637,7 @@ async function enviarComunicadoAniversarioHoje(opts = {}) {
           type: "template",
           template: {
             name: templateName,
-            language: { code: TEMPLATE_ANIV_LANG },
+            language: { code: await __getResolvedAnivLang(templateName) },
             components: (variaveis && variaveis.length)
               ? [{ type: "body", parameters: variaveis.map(v => ({ type: "text", text: `${v}` })) }]
               : undefined,
