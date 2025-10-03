@@ -9,6 +9,10 @@ const cron = require("node-cron");
 const app = express();
 app.use(express.json());
 
+// Idiomas de template configuráveis (default pt_BR)
+const TEMPLATE_LANG = (process.env.WHATSAPP_TEMPLATE_LANG || "pt_BR").trim();
+const TEMPLATE_ANIV_LANG = (process.env.WHATSAPP_TEMPLATE_ANIV_LANG || TEMPLATE_LANG).trim();
+
 // Versão da Graph API (configurável). Padrão v20.0 para evitar 404 de versões antigas.
 const GRAPH_VERSION = process.env.GRAPH_API_VERSION || "v20.0";
 const graphUrl = (path) => `https://graph.facebook.com/${GRAPH_VERSION}/${path}`;
@@ -153,7 +157,7 @@ async function enviarWhatsAppTemplateLocal(numero, templateName, variaveis = [])
     type: "template",
     template: {
       name: templateName,
-      language: { code: "pt_BR" },
+      language: { code: TEMPLATE_LANG },
       components: variaveis.length
         ? [{ type: "body", parameters: variaveis.map(v => ({ type: "text", text: `${v}` })) }]
         : undefined,
@@ -314,7 +318,7 @@ async function enviarTemplateLembreteEvento(numero, eventoNome, dataEvento) {
     console.log(`Debug: Parâmetros do template - eventoNome: ${eventoNome}, dataEvento: ${dataEvento}`);
     console.log(`Debug: Objeto template completo: ${JSON.stringify({
           name: "eac_lembrete_v1", // <-- NOME DO TEMPLATE ATUALIZADO AQUI
-          language: { code: "pt_BR" },
+          language: { code: TEMPLATE_LANG },
           components: [
             {
               type: "body",
@@ -336,7 +340,7 @@ async function enviarTemplateLembreteEvento(numero, eventoNome, dataEvento) {
         type: "template",
         template: {
           name: "eac_lembrete_v1", // <-- NOME DO TEMPLATE ATUALIZADO AQUI
-          language: { code: "pt_BR" },
+          language: { code: TEMPLATE_LANG },
           components: [
             {
               type: "body",
@@ -895,7 +899,7 @@ async function enviarTemplateBoasVindas(numero) {
         type: "template",
         template: {
           name: "eac_boasvindas_v1",
-          language: { code: "pt_BR" }
+          language: { code: TEMPLATE_LANG }
         }
       },
       {
@@ -1011,7 +1015,7 @@ app.get("/dispararConfirmacaoParticipacao", async (req, res) => {
             type: "template",
             template: {
               name: "eac_confirmar_participacao_v1",
-              language: { code: "pt_BR" },
+              language: { code: TEMPLATE_LANG },
             },
           },
           {
@@ -1518,7 +1522,7 @@ async function enviarComunicadoAniversarioHoje(opts = {}) {
           type: "template",
           template: {
             name: templateName,
-            language: { code: "pt_BR" },
+            language: { code: TEMPLATE_ANIV_LANG },
             components: (variaveis && variaveis.length)
               ? [{ type: "body", parameters: variaveis.map(v => ({ type: "text", text: `${v}` })) }]
               : undefined,
