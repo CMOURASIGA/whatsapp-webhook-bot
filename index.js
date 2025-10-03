@@ -9,10 +9,97 @@ const cron = require("node-cron");
 const app = express();
 app.use(express.json());
 
-const VERIFY_TOKEN = "meu_token_webhook";
-const token = process.env.TOKEN_WHATSAPP;
-const phone_number_id = "572870979253681";
+// Middleware compatível para aceitar Authorization: Bearer <CHAVE_DISPARO>
+// em /disparo sem quebrar o uso atual por query string ?chave=
+app.use((req, res, next) => {
+  try {
+    if (req.path === "/disparo") {
+      const authHeader = req.headers.authorization || "";
+      const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+      if (bearer && !req.query.chave) {
+        req.query.chave = bearer; // reaproveita a verificação existente da rota
+      }
+    }
+    // Proteção opcional do painel via Bearer (desativada por padrão)
+    if (req.path === "/painel" && String(process.env.PAINEL_REQUIRE_AUTH).toLowerCase() === "true") {
+      const authHeader = req.headers.authorization || "";
+      const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+      if (!process.env.CHAVE_DISPARO || bearer !== process.env.CHAVE_DISPARO) {
+        return res.status(401).send("Acesso não autorizado.");
+      }
+    }
+  } catch (e) {
+    // Em caso de erro no middleware, não bloqueia a requisição
+  }
+  next();
+});
+
+const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "";
+const token = process.env.WHATSAPP_TOKEN || process.env.TOKEN_WHATSAPP || "";
+const phone_number_id = process.env.WHATSAPP_PHONE_NUMBER_ID || "572870979253681";
 const TELEFONE_CONTATO_HUMANO = process.env.TELEFONE_CONTATO_HUMANO;
+
+// Healthcheck e verificação do webhook (GET)
+app.get("/healthz", (req, res) => res.json({ ok: true }));
+app.get("/webhook", (req, res) => {
+  const mode = req.query["hub.mode"];
+  const verifyToken = req.query["hub.verify_token"];
+  const challenge = req.query["hub.challenge"];
+  if (mode === "subscribe" && verifyToken && VERIFY_TOKEN && verifyToken === VERIFY_TOKEN) {
+    return res.status(200).send(challenge);
+  }
+  return res.sendStatus(403);
+});
+
+// ===== Modo seguro de testes (staging) =====
+// DRY_RUN: evita chamadas reais ao WhatsApp; devolve resposta simulada
+// ENABLE_CRON=false: desativa agendamento de crons
+try {
+  const isDryRun = String(process.env.DRY_RUN || "").toLowerCase() === "true" || !token;
+  if (isDryRun) {
+    axios.interceptors.request.use((config) => {
+      const url = String(config?.url || "");
+      if (url.includes("graph.facebook.com") && url.includes("/messages")) {
+        console.log("[DRY_RUN] Bloqueando envio WhatsApp:", url);
+        console.log("[DRY_RUN] Payload:", JSON.stringify(config.data || {}, null, 2));
+        return Promise.reject({ __dryRun: true, config });
+      }
+      return config;
+    });
+    axios.interceptors.response.use(
+      (resp) => resp,
+      (err) => {
+        if (err && err.__dryRun) {
+          // Emula uma resposta de sucesso do WhatsApp
+          return Promise.resolve({
+            status: 200,
+            statusText: "OK",
+            data: { messages: [{ id: "dry-run" }] },
+            headers: {},
+            config: err.config,
+          });
+        }
+        return Promise.reject(err);
+      }
+    );
+    console.log("[DRY_RUN] Ativado (sem envios reais).\n");
+  }
+} catch (e) {
+  console.warn("[DRY_RUN] Interceptor não aplicado:", e?.message || e);
+}
+
+try {
+  if (String(process.env.ENABLE_CRON || "").toLowerCase() === "false") {
+    const origSchedule = cron.schedule;
+    cron.schedule = (expr, fn, opts) => {
+      console.log(`[CRON] Desativado (ENABLE_CRON=false) -> ${expr}`);
+      return { start() {}, stop() {}, destroy() {} };
+    };
+    console.log("[CRON] Todos os agendamentos estão desativados nesta instância.\n");
+  }
+} catch (e) {
+  console.warn("[CRON] Falha ao desativar scheduler:", e?.message || e);
+}
 
 // --- INÍCIO DA ADIÇÃO ---
 function getRandomMessage(messages) {
