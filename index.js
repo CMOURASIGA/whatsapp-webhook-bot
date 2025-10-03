@@ -1271,17 +1271,8 @@ app.get("/painel", (req, res) => {
       <script>
         function disparar(tipo, endpoint) {
           try {
-            const u = new URL(endpoint, window.location.origin);
-            const tipoParam = u.searchParams.get('tipo') || tipo;
-            const chave = u.searchParams.get('chave');
-            fetch('/disparo', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ tipo: tipoParam, chave })
-            })
-            .then(r => r.text())
-            .then(msg => alert(msg))
-            .catch(err => alert('Erro: ' + err));
+            // Abre o endpoint GET em nova aba para evitar timeout do fetch
+            window.open(endpoint, '_blank');
           } catch (e) { alert('Erro: ' + e); }
         }
 
