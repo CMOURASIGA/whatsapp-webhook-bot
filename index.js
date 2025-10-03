@@ -9,6 +9,10 @@ const cron = require("node-cron");
 const app = express();
 app.use(express.json());
 
+// Versão da Graph API (configurável). Padrão v20.0 para evitar 404 de versões antigas.
+const GRAPH_VERSION = process.env.GRAPH_API_VERSION || "v20.0";
+const graphUrl = (path) => `https://graph.facebook.com/${GRAPH_VERSION}/${path}`;
+
 // Middleware compatível para aceitar Authorization: Bearer <CHAVE_DISPARO>
 // em /disparo sem quebrar o uso atual por query string ?chave=
 app.use((req, res, next) => {
@@ -248,7 +252,7 @@ function montarMenuPrincipal() {
 async function enviarMensagem(numero, mensagem) {
   try {
     await axios.post(
-      `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
+      graphUrl(`${phone_number_id}/messages`),
       {
         messaging_product: "whatsapp",
         to: numero,
@@ -276,7 +280,7 @@ async function enviarMensagemInterativa(numero, mensagemInterativa) {
     };
 
     await axios.post(
-      `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
+      graphUrl(`${phone_number_id}/messages`),
       payload,
       {
         headers: {
@@ -325,7 +329,7 @@ async function enviarTemplateLembreteEvento(numero, eventoNome, dataEvento) {
         }, null, 2)}`);
 
     await axios.post(
-      `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
+      graphUrl(`${phone_number_id}/messages`),
       {
         messaging_product: "whatsapp",
         to: numero,
@@ -558,7 +562,7 @@ app.post("/webhook", async (req, res) => {
           await enviarMensagem(numero, saudacao);
           for (const link of imagens) {
             await axios.post(
-              `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
+              graphUrl(`${phone_number_id}/messages`),
               {
                 messaging_product: "whatsapp",
                 to: numero,
@@ -883,8 +887,8 @@ async function enviarTemplateBoasVindas(numero) {
   try {
     console.log(`📨 Enviando template de boas-vindas para: ${numero}`);
 
-    await axios.post(
-      `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
+      await axios.post(
+        graphUrl(`${phone_number_id}/messages`),
       {
         messaging_product: "whatsapp",
         to: numero,
@@ -1000,7 +1004,7 @@ app.get("/dispararConfirmacaoParticipacao", async (req, res) => {
 
       try {
         await axios.post(
-          `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
+          graphUrl(`${phone_number_id}/messages`),
           {
             messaging_product: "whatsapp",
             to: numeroWhatsApp,
@@ -1151,7 +1155,7 @@ async function enviarTemplateAgradecimentoInscricao(numero) {
     console.log(`📨 Enviando template de agradecimento para: ${numero}`);
 
     await axios.post(
-      `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
+      graphUrl(`${phone_number_id}/messages`),
       {
         messaging_product: "whatsapp",
         to: numero,
@@ -1264,7 +1268,7 @@ async function dispararComunicadoGeralFila() {
 
       try {
         await axios.post(
-          `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
+          graphUrl(`${phone_number_id}/messages`),
           {
             messaging_product: "whatsapp",
             to: numero,
@@ -1327,7 +1331,7 @@ async function dispararComunicadoGeralFila() {
 
       try {
         await axios.post(
-          `https://graph.facebook.com/v19.0/${phone_number_id}/messages`,
+          graphUrl(`${phone_number_id}/messages`),
           {
             messaging_product: "whatsapp",
             to: numero,
