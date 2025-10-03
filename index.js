@@ -88,6 +88,79 @@ app.get("/webhook", (req, res) => {
   return res.sendStatus(403);
 });
 
+// Rota de diagnóstico do disparo de aniversário (somente com chave)
+app.get("/disparo-aniversario-debug", async (req, res) => {
+  const chave = req.query.chave;
+  const chaveCorreta = process.env.CHAVE_DISPARO;
+  if (!chaveCorreta || chave !== chaveCorreta) return res.status(401).json({ ok:false, error:"Acesso não autorizado" });
+  try {
+    const diag = await diagnosticarAniversario();
+    return res.json({ ok:true, tipo:"aniversario", diagnostics: diag });
+  } catch (e) {
+    return res.status(500).json({ ok:false, error: e?.message || String(e) });
+  }
+});
+
+// ===== Helpers de diagnóstico (aniversário) =====
+async function resolveTemplateAnivLang(templateName) {
+  try {
+    const envLang = String(process.env.WHATSAPP_TEMPLATE_ANIV_LANG || '').trim();
+    if (envLang) return envLang;
+    const bizId = (process.env.WHATSAPP_BUSINESS_ID || '').trim();
+    const token = (process.env.WHATSAPP_TOKEN || '').trim();
+    if (!bizId || !token) return process.env.WHATSAPP_TEMPLATE_LANG || 'pt_BR';
+    const url = `https://graph.facebook.com/v20.0/${bizId}/message_templates?name=${encodeURIComponent(templateName)}&limit=1`;
+    const { data } = await axios.get(url, { headers: { Authorization: `Bearer ${token}` }, timeout: 15000 });
+    return data?.data?.[0]?.language || (process.env.WHATSAPP_TEMPLATE_LANG || 'pt_BR');
+  } catch (e) {
+    return process.env.WHATSAPP_TEMPLATE_LANG || 'pt_BR';
+  }
+}
+
+async function diagnosticarAniversario() {
+  const SPREADSHEET_ID = "13QUYrH1iRV1TwyVQhtCHjXy77XxB9Eu7R_wsCZIJDwk";
+  const SHEET_NAME = "Cadastro Oficial";
+  const RANGE_LER = `${SHEET_NAME}!A2:V`;
+  const IDX = { NASC: 2, TEL: 6, ST_ANIV: 21 };
+  const TZ = "America/Sao_Paulo";
+
+  const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS || '{}');
+  const auth = new google.auth.GoogleAuth({ credentials, scopes: ["https://www.googleapis.com/auth/spreadsheets"] });
+  const client = await auth.getClient();
+  const sheets = google.sheets({ version: "v4", auth: client });
+  const resp = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: RANGE_LER, valueRenderOption: "FORMATTED_VALUE", dateTimeRenderOption: "FORMATTED_STRING" });
+  const rows = resp.data.values || [];
+
+  function parseDate(val) {
+    if (val == null || val === "") return null;
+    if (typeof val === "number") { const ms = Math.round((val - 25569) * 86400 * 1000); return new Date(ms); }
+    const s = String(val).trim();
+    const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
+    if (m) { let [_, dd, mm, yyyy] = m; dd = +dd; mm = +mm - 1; yyyy = (String(yyyy).length === 2) ? 2000 + +yyyy : +yyyy; return new Date(Date.UTC(yyyy, mm, dd)); }
+    const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/); if (iso) return new Date(Date.UTC(+iso[1], +iso[2]-1, +iso[3]));
+    const d = new Date(s); return isNaN(d) ? null : d;
+  }
+  function todayUTC() {
+    const now = new Date(); const local = new Date(now.toLocaleString("en-US", { timeZone: TZ }));
+    return new Date(Date.UTC(local.getFullYear(), local.getMonth(), local.getDate()));
+  }
+  function isBday(val, refUTC){ const d = parseDate(val); return !!d && d.getUTCMonth()===refUTC.getUTCMonth() && d.getUTCDate()===refUTC.getUTCDate(); }
+  function normTel(raw){ if(!raw) return ""; const digits=String(raw).replace(/\D/g,"").replace(/^0+/g,""); return digits.startsWith("55")?digits:`55${digits}`; }
+
+  const hoje = todayUTC();
+  const diagnostics = { today: hoje.toISOString().slice(0,10), tz: TZ, rows: rows.length, matchedBirthday: 0, skipped: [] };
+  for(let i=0;i<rows.length;i++){
+    const r = rows[i]; const nasc = r[IDX.NASC]; const telRaw = r[IDX.TEL]; const st=(r[IDX.ST_ANIV]||'').toString().trim();
+    if (st.toLowerCase().startsWith("anivers")) { diagnostics.skipped.push({row:i+2, reason:"status_marcado"}); continue; }
+    if (!isBday(nasc, hoje)) { diagnostics.skipped.push({row:i+2, reason:"nao_e_hoje", nasc:String(nasc||'')}); continue; }
+    const numero = normTel(telRaw); if (!numero) { diagnostics.skipped.push({row:i+2, reason:"sem_telefone"}); continue; }
+    diagnostics.matchedBirthday++;
+    if (diagnostics.matchedBirthday>=5) break;
+  }
+  diagnostics.resolvedLang = await resolveTemplateAnivLang(process.env.WHATSAPP_TEMPLATE_ANIV_NAME || 'eac_comunicado_aniversario');
+  return diagnostics;
+}
+
 // Rota POST /disparo (compatível): redireciona para GET mantendo chave/tipo
 app.post("/disparo", express.json(), (req, res) => {
   try {
