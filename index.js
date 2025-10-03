@@ -853,7 +853,7 @@ app.get("/disparo", async (req, res) => {
       console.log("🚀 Disparando Felicitações de Aniversário (hoje)…");
       const result = await enviarComunicadoAniversarioHoje({
         getSheetsClient: (typeof getSheetsClient === "function" ? getSheetsClient : getSheetsClientLocal),
-        sendWhatsAppTemplate: (typeof enviarWhatsAppTemplate === "function" ? enviarWhatsAppTemplate : enviarWhatsAppTemplateLocal),
+        // sendWhatsAppTemplate omitido para usar o sender interno com idioma específico
       });
       return res.json({ ok: true, tipo, ...result });
     }
