@@ -5,6 +5,7 @@ const express = require("express");
 const axios = require("axios");
 const { google } = require("googleapis");
 const cron = require("node-cron");
+const sharp = require("sharp");
 
 const app = express();
 app.use(express.json());
@@ -296,6 +297,678 @@ function getSheetsClientLocal() {
   );
   return google.sheets({ version: "v4", auth: jwt });
 }
+
+// ================================================================
+// NOVO GERADOR DE CALENDÁRIO (SVG -> PNG via sharp)
+// Mantém tudo aqui para facilitar rollback do fluxo de eventos
+// ================================================================
+
+const CAL_PAGE_W = 960;
+const CAL_PAGE_H = 540;
+const CAL_MARGIN_X = 24;
+const CAL_TITLE_H = 42;
+const CAL_HEADER_H = 24;
+const CAL_MARGIN_TOP = 20 + CAL_TITLE_H + CAL_HEADER_H + 8;
+const CAL_GRID_W = CAL_PAGE_W - CAL_MARGIN_X * 2;
+const CAL_GRID_H = CAL_PAGE_H - CAL_MARGIN_TOP - 20;
+const CAL_COLS = 7;
+const CAL_ROWS = 7; // 1 header + 6 semanas
+const CAL_CELL_W = CAL_GRID_W / CAL_COLS;
+const CAL_CELL_H = CAL_GRID_H / (CAL_ROWS - 1);
+const CAL_MAX_EVENT_LINES = 4;
+const CAL_TZ = "America/Sao_Paulo";
+const CAL_DOW = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+const CAL_MONTHS = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+
+const __cal_cache = new Map(); // key: YYYY-MM -> { buf, expiresAt }
+let __logo_cache = { key: null, uri: null, expiresAt: 0 };
+const __font_cache = new Map(); // key -> { uri, expiresAt }
+
+function calKeyFromDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+function startOfMonth(d) {
+  const dt = new Date(d);
+  dt.setDate(1); dt.setHours(0,0,0,0);
+  return dt;
+}
+
+function endOfMonth(d) {
+  const dt = new Date(d.getFullYear(), d.getMonth()+1, 0);
+  dt.setHours(23,59,59,999);
+  return dt;
+}
+
+function parseDateFlexBRorNative(s) {
+  const re = /^\d{2}\/\d{2}\/\d{4}$/;
+  if (re.test(s)) {
+    const [dd, mm, yyyy] = s.split("/");
+    const d = new Date(Number(yyyy), Number(mm)-1, Number(dd));
+    if (isNaN(d.getTime())) return null;
+    d.setHours(0,0,0,0);
+    return d;
+  }
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return null;
+  d.setHours(0,0,0,0);
+  return d;
+}
+
+async function readEventosDoMes(reference) {
+  const spreadsheetId = process.env.SPREADSHEET_ID_EVENTOS || "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8";
+  const range = "comunicados!A2:G"; // B: título (idx 1), G: data (idx 6)
+  const sheets = getSheetsClientLocal();
+  const ini = startOfMonth(reference);
+  const fim = endOfMonth(reference);
+
+  const get = await sheets.spreadsheets.values.get({ spreadsheetId, range });
+  const rows = get?.data?.values || [];
+  const eventosMap = {}; // day -> [{ title, date }]
+
+  for (const row of rows) {
+    const titulo = (row[1] || '').toString().trim(); // coluna B
+    const dataStr = (row[6] || '').toString().trim(); // coluna G
+    if (!titulo || !dataStr) continue;
+    const dt = parseDateFlexBRorNative(dataStr);
+    if (!dt) continue;
+    if (dt >= ini && dt <= fim) {
+      const day = dt.getDate();
+      if (!eventosMap[day]) eventosMap[day] = [];
+      eventosMap[day].push({ title: titulo, date: dt });
+    }
+  }
+  // ordenar por data/hora e título
+  Object.keys(eventosMap).forEach(k => eventosMap[k].sort((a, b) => {
+    const ta = a.date?.getTime?.() || 0;
+    const tb = b.date?.getTime?.() || 0;
+    if (ta !== tb) return ta - tb;
+    return String(a.title||'').localeCompare(String(b.title||''));
+  }));
+  const hasAny = Object.keys(eventosMap).length > 0;
+  return { eventosMap, hasAny };
+}
+
+function limitarEventos(lines, max) {
+  if (lines.length <= max) return lines;
+  const shown = lines.slice(0, max-1);
+  const rest = lines.length - (max-1);
+  shown.push(`+${rest} mais`);
+  return shown;
+}
+
+// Aproximação de wrap por largura da célula
+function wrapByWidth(text, maxChars) {
+  if (!text) return [""];
+  if (text.length <= maxChars) return [text];
+  const out = [];
+  const words = text.split(/\s+/);
+  let line = "";
+  for (const w of words) {
+    if ((line ? line.length + 1 : 0) + w.length <= maxChars) {
+      line = line ? line + " " + w : w;
+    } else {
+      if (line) out.push(line);
+      if (w.length > maxChars) {
+        // quebra palavra longa
+        let p = 0;
+        while (p < w.length) {
+          out.push(w.slice(p, p + maxChars));
+          p += maxChars;
+          if (out.length > 200) break; // guarda
+        }
+        line = "";
+      } else {
+        line = w;
+      }
+    }
+  }
+  if (line) out.push(line);
+  return out;
+}
+
+function computeMaxChars(cellWidthPx, fontPx) {
+  const approxCharW = fontPx * 0.58; // Arial aproximação
+  const usable = Math.max(0, cellWidthPx - 12);
+  return Math.max(8, Math.floor(usable / approxCharW));
+}
+
+// Logo data URI (cache)
+async function getLogoDataUri() {
+  const now = Date.now();
+  // Permite injetar data URI diretamente por ENV (bypassa rede)
+  const envData = (process.env.EVENTOS_LOGO_DATA_URI || '').trim();
+  if (envData.startsWith('data:')) {
+    __logo_cache = { key: 'env:data', uri: envData, expiresAt: now + 365*24*60*60*1000 };
+    return envData;
+  }
+  const urlEnv = (process.env.EVENTOS_LOGO_URL || '').trim();
+  const cacheKey = urlEnv;
+  if (__logo_cache.uri && __logo_cache.expiresAt > now && __logo_cache.key === cacheKey) return __logo_cache.uri;
+  try {
+    let url = urlEnv;
+    if (!url) return null;
+    const UA = 'Mozilla/5.0 (compatible; EACBot/1.0; +https://example.com)';
+
+    async function fetchImage(u) {
+      const resp = await axios.get(u, {
+        responseType: 'arraybuffer',
+        timeout: 15000,
+        headers: { 'User-Agent': UA, 'Accept': 'image/*,*/*;q=0.8' },
+        validateStatus: s => s>=200 && s<400,
+      });
+      const mime = (resp.headers['content-type'] || '').toLowerCase();
+      if (!mime.startsWith('image/')) throw new Error(`conteudo_nao_imagem: ${mime}`);
+      return { data: resp.data, mime };
+    }
+
+    // 1) Tenta URL direta
+    let fetched;
+    try {
+      fetched = await fetchImage(url);
+    } catch (e1) {
+      // 2) Se for imgur.com, converte para i.imgur.com/<id>.png
+      if ((/imgur\.com\//i).test(url)) {
+        const m = url.match(/imgur\.com\/([A-Za-z0-9]+)(?:\.[A-Za-z0-9]+)?/i);
+        if (m && m[1]) {
+          const alt = `https://i.imgur.com/${m[1]}.png`;
+          try { fetched = await fetchImage(alt); url = alt; } catch (e2) { /* segue */ }
+        }
+      }
+      // 3) Proxy sem custo (weserv) para contornar 429/CDN
+      if (!fetched) {
+        const prox = `https://images.weserv.nl/?url=${encodeURIComponent(url.replace(/^https?:\/\//,''))}`;
+        try { fetched = await fetchImage(prox); } catch (e3) {
+          // Se falhar com 429 ou outro, aplica backoff maior
+          __logo_cache = { key: cacheKey, uri: null, expiresAt: now + 6*60*60*1000 };
+          console.warn('[EventosLogo] Falha em todas tentativas:', e1?.message, '| prox');
+          return null;
+        }
+      }
+    }
+
+    const b64 = Buffer.from(fetched.data).toString('base64');
+    const uri = `data:${fetched.mime || 'image/png'};base64,${b64}`;
+    __logo_cache = { key: cacheKey, uri, expiresAt: now + 24*60*60*1000 };
+    return uri;
+  } catch (e) {
+    console.warn('[EventosLogo] Falha ao carregar logo:', e?.message || e);
+    // Em erro genérico, aplica backoff de 2h para evitar repetir
+    __logo_cache = { key: cacheKey, uri: null, expiresAt: now + 2*60*60*1000 };
+    return null;
+  }
+}
+
+// Carrega fonte como data URI (woff2). Suporta *_WOFF2 (base64 sem cabeçalho) ou *_URL
+async function getFontDataUri(kind) {
+  const now = Date.now();
+  const cache = __font_cache.get(kind);
+  if (cache && cache.expiresAt > now) return cache.uri;
+  const envBase64 = (process.env[kind === 'chewy' ? 'EVENTOS_FONT_CHEWY_WOFF2' : 'EVENTOS_FONT_ANTONIO_WOFF2'] || '').trim();
+  if (envBase64) {
+    const uri = `data:font/woff2;base64,${envBase64}`;
+    __font_cache.set(kind, { uri, expiresAt: now + 365*24*60*60*1000 });
+    return uri;
+  }
+  const envUrl = (process.env[kind === 'chewy' ? 'EVENTOS_FONT_CHEWY_URL' : 'EVENTOS_FONT_ANTONIO_URL'] || '').trim();
+  if (!envUrl) return null;
+  try {
+    const UA = 'Mozilla/5.0 (compatible; EACBot/1.0)';
+    const resp = await axios.get(envUrl, { responseType: 'arraybuffer', timeout: 15000, headers: { 'User-Agent': UA }, validateStatus: s => s>=200 && s<400 });
+    const mime = (resp.headers['content-type'] || 'font/woff2').toLowerCase();
+    if (!mime.includes('font') && !mime.includes('octet-stream')) throw new Error(`conteudo_nao_fonte: ${mime}`);
+    const b64 = Buffer.from(resp.data).toString('base64');
+    const uri = `data:${mime.includes('font') ? mime : 'font/woff2'};base64,${b64}`;
+    __font_cache.set(kind, { uri, expiresAt: now + 90*24*60*60*1000 });
+    return uri;
+  } catch (e) {
+    console.warn('[FontFetch] Falha ao baixar fonte', kind, e?.message || e);
+    __font_cache.set(kind, { uri: null, expiresAt: now + 24*60*60*1000 });
+    return null;
+  }
+}
+
+function buildSvgCalendario(reference, eventosMap, logoDataUri) {
+  const monthName = CAL_MONTHS[reference.getMonth()];
+  const title = `Agenda de Eventos – ${monthName} ${reference.getFullYear()}`;
+  const first = new Date(reference.getFullYear(), reference.getMonth(), 1);
+  const firstDow = first.getDay(); // 0=Dom
+  const lastDay = new Date(reference.getFullYear(), reference.getMonth()+1, 0).getDate();
+
+  // Build SVG elements for header days and grid lines
+  const headerDays = CAL_DOW.map((name, i) => {
+    const x = CAL_MARGIN_X + i * CAL_CELL_W + CAL_CELL_W/2;
+    const y = 20 + CAL_TITLE_H + CAL_HEADER_H - 8;
+    return `<text x="${x}" y="${y}" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#444">${name}</text>`;
+  }).join('');
+
+  const gridTop = CAL_MARGIN_TOP;
+  const linesH = Array.from({length: (CAL_ROWS-1)+1}, (_,r)=>{
+    const y = gridTop + r * CAL_CELL_H;
+    return `<line x1="${CAL_MARGIN_X}" y1="${y}" x2="${CAL_MARGIN_X + CAL_GRID_W}" y2="${y}" stroke="#DDD" stroke-width="1" />`;
+  }).join('');
+  const linesV = Array.from({length: CAL_COLS+1}, (_,c)=>{
+    const x = CAL_MARGIN_X + c * CAL_CELL_W;
+    return `<line x1="${x}" y1="${gridTop}" x2="${x}" y2="${gridTop + CAL_GRID_H}" stroke="#DDD" stroke-width="1" />`;
+  }).join('');
+
+  // Fill days
+  let row = 0, col = firstDow;
+  const cells = [];
+  for (let day=1; day<=lastDay; day++) {
+    const x = CAL_MARGIN_X + col * CAL_CELL_W;
+    const y = gridTop + row * CAL_CELL_H;
+    const dayX = x + CAL_CELL_W - 8;
+    const dayY = y + 16;
+    const eventos = eventosMap[day] || [];
+    // Formata eventos: usa somente o título (não repete a data)
+    const maxChars = computeMaxChars(CAL_CELL_W, 11);
+    const gathered = [];
+    let usedLines = 0;
+    for (let i=0; i<eventos.length; i++) {
+      const e = eventos[i];
+      const titleOnly = stripDateFromTitle(String(e?.title || '').trim());
+      const wrapped = wrapByWidth(titleOnly, maxChars);
+      if (wrapped.length === 0) continue;
+      for (let j=0; j<wrapped.length; j++) {
+        if (usedLines >= CAL_MAX_EVENT_LINES) break;
+        const prefix = j === 0 ? '• ' : '  ';
+        gathered.push(prefix + wrapped[j]);
+        usedLines++;
+      }
+      if (usedLines >= CAL_MAX_EVENT_LINES) break;
+    }
+    // Se sobrar eventos não exibidos, adiciona "+N mais"
+    const totalLinesIfSingle = eventos.length; // aproximado por evento
+    if (eventos.length > 0) {
+      const remaining = eventos.length - Math.max(0, gathered.length > 0 ? Math.ceil(gathered.length/2) : 0);
+      if (remaining > 0 && usedLines < CAL_MAX_EVENT_LINES) {
+        gathered[CAL_MAX_EVENT_LINES-1] = `+${remaining} mais`;
+      }
+    }
+    const evText = gathered.map((l, idx)=>{
+      const ty = y + 30 + idx*14;
+      return `<text x="${x+10}" y="${ty}" font-family="Arial, sans-serif" font-size="11" fill="#222">${escapeXml(l)}</text>`;
+    }).join('');
+    cells.push(
+      `<text x="${dayX}" y="${dayY}" text-anchor="end" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#222">${day}</text>` +
+      evText
+    );
+    col++; if (col>=CAL_COLS) { col=0; row++; }
+  }
+
+  const logoTag = logoDataUri ? `<image href="${logoDataUri}" x="${CAL_MARGIN_X}" y="12" width="56" height="56" preserveAspectRatio="xMidYMid meet" />` : '';
+
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="${CAL_PAGE_W}" height="${CAL_PAGE_H}" viewBox="0 0 ${CAL_PAGE_W} ${CAL_PAGE_H}" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="${CAL_PAGE_W}" height="${CAL_PAGE_H}" fill="#FFFFFF" />
+  ${logoTag}
+  <text x="${CAL_PAGE_W/2}" y="${20 + CAL_TITLE_H - 12}" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#111">${escapeXml(title)}</text>
+  ${headerDays}
+  ${linesH}
+  ${linesV}
+  ${cells.join('')}
+</svg>`;
+  return svg;
+}
+
+function escapeXml(s="") {
+  return s.replace(/[&<>]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[ch]));
+}
+
+// Remove fragmentos de data no título (ex.: " - 05/10" ou " – 05 de Outubro")
+function stripDateFromTitle(t) {
+  let s = t;
+  // padrões comuns com separadores - ou –
+  s = s.replace(/\s*[\-–—]\s*\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\s*$/u, '');
+  s = s.replace(/\s*[\-–—]\s*\d{1,2}\s+de\s+[A-Za-zÀ-ÿ]+\s*$/u, '');
+  // espaços duplos
+  s = s.replace(/\s{2,}/g, ' ').trim();
+  return s;
+}
+
+async function getOrRenderCalendarPng(monthStr) {
+  const now = Date.now();
+  const cached = __cal_cache.get(monthStr);
+  if (cached && cached.expiresAt > now) return cached.buf;
+
+  const [y, m] = monthStr.split('-').map(Number);
+  const ref = new Date(y, m-1, 1);
+  const { eventosMap, hasAny } = await readEventosDoMes(ref);
+
+  if (!hasAny) {
+    // Gera uma imagem simples "Sem eventos" para manter compatibilidade visual
+    const svg = `<?xml version="1.0"?><svg width="${CAL_PAGE_W}" height="${CAL_PAGE_H}" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="#fff"/><text x="50%" y="50%" font-family="Arial, sans-serif" font-size="24" text-anchor="middle" fill="#333">Sem eventos neste mês</text></svg>`;
+    const buf = await sharp(Buffer.from(svg)).png().toBuffer();
+    __cal_cache.set(monthStr, { buf, expiresAt: now + 60*60*1000 }); // 1h
+    return buf;
+  }
+
+  const refDate = new Date(y, m-1, 1);
+  const logoUri = await getLogoDataUri();
+  const svg = buildSvgCalendario(refDate, eventosMap, logoUri);
+  const png = await sharp(Buffer.from(svg)).png().toBuffer();
+  __cal_cache.set(monthStr, { buf: png, expiresAt: now + 6*60*60*1000 }); // 6h
+  return png;
+}
+
+// Rota PNG direta
+app.get('/eventos/calendario.png', async (req, res) => {
+  try {
+    const d = new Date();
+    const monthStr = (req.query.month && /\d{4}-\d{2}/.test(req.query.month))
+      ? req.query.month
+      : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const png = await getOrRenderCalendarPng(monthStr);
+    res.set('Content-Type','image/png');
+    res.set('Cache-Control','public, max-age=3600');
+    return res.send(png);
+  } catch (e) {
+    console.error('[EventosPNG] Erro:', e?.message || e);
+    return res.status(500).send('erro');
+  }
+});
+
+// Rota JSON compatível com contrato antigo
+app.get('/eventos/status.json', async (req, res) => {
+  try {
+    const d = new Date();
+    const monthStr = (req.query.month && /\d{4}-\d{2}/.test(req.query.month))
+      ? req.query.month
+      : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const [y, m] = monthStr.split('-').map(Number);
+    const ref = new Date(y, m-1, 1);
+    const { hasAny } = await readEventosDoMes(ref);
+    if (!hasAny) return res.json({ status: 'SEM_EVENTOS' });
+    const baseUrl = (process.env.PUBLIC_BASE_URL || '').trim() || `${req.protocol}://${req.get('host')}`;
+    const link = `${baseUrl}/eventos/calendario.png?month=${monthStr}`;
+    return res.json({ status: 'OK', links: [link] });
+  } catch (e) {
+    console.error('[EventosJSON] Erro:', e?.message || e);
+    return res.json({ status: 'ERRO', erro: e?.message || String(e) });
+  }
+});
+
+// ================================================================
+// NOVA SAÍDA: PÔSTER 1080x1080 (lista de eventos)
+// ================================================================
+function formatMonthDay(dt) {
+  // dd/mm para combinar com o exemplo fornecido
+  const d = dt.getDate();
+  const m = dt.getMonth() + 1;
+  return `${String(d)}/${String(m)}`;
+}
+
+function getAllEventsSorted(eventosMap) {
+  const list = [];
+  for (const k of Object.keys(eventosMap)) {
+    const day = Number(k);
+    for (const e of eventosMap[k]) {
+      list.push({ date: e.date, title: e.title });
+    }
+  }
+  list.sort((a,b) => {
+    const ta = a.date?.getTime?.() || 0;
+    const tb = b.date?.getTime?.() || 0;
+    if (ta !== tb) return ta - tb;
+    return String(a.title||'').localeCompare(String(b.title||''));
+  });
+  return list;
+}
+
+function buildSvgPoster(reference, eventosMap, logoDataUri, options = {}) {
+  const W = 1080, H = 1080;
+  const RADIUS = 28;
+  const BORDER = 10;
+  const MARGIN = 40;
+  const BLUE = '#044372';
+  const OFF = '#F9F7F2';
+  const BLACK = '#111111';
+  const WHITE = '#FFFFFF';
+
+  const SPEC = {
+    title: { top: 60, size: 150, track: 1.5 },
+    row: { count: options.count || 5, gap: 24, height: 96 },
+    pill: { diameter: 84, stroke: 4, textSize: 28 },
+    card: { radius: 48, textSize: 60, leftPad: 28, ratio: 0.8, gap: 20 }
+  };
+
+  const titleText = 'EVENTOS DO MÊS';
+  const startY = SPEC.title.top + SPEC.title.size + 40; // após o título
+  const circleR = SPEC.pill.diameter / 2;
+  const innerLeft = MARGIN;
+  const innerRight = W - MARGIN;
+  const rectXStart = innerLeft + circleR*2 + SPEC.card.gap;
+  const rectUsableW = innerRight - rectXStart;
+  const rectW = Math.floor(rectUsableW * SPEC.card.ratio);
+
+  const allEvents = getAllEventsSorted(eventosMap).map(e => ({
+    dateText: formatMonthDay(e.date),
+    title: stripDateFromTitle(String(e.title||'').trim())
+  }));
+  const page = Number(options.page || 1);
+  const perPage = Number(options.perPage || SPEC.row.count);
+  const start = (page - 1) * perPage;
+  const events = allEvents.slice(start, start + perPage);
+
+  const logoTag = logoDataUri ? `<image href="${logoDataUri}" x="${W- MARGIN - 140}" y="${MARGIN}" width="120" height="120" preserveAspectRatio="xMidYMid meet" />` : '';
+
+  function fitTitle(t) {
+    const maxChars = Math.floor((rectW - SPEC.card.leftPad - 20) / (SPEC.card.textSize * 0.52));
+    if (t.length <= maxChars) return t;
+    return t.slice(0, Math.max(0, maxChars-1)) + '…';
+  }
+
+  const rows = events.map((ev, idx) => {
+    const cy = startY + idx * (SPEC.row.height + SPEC.row.gap) + SPEC.row.height/2; // centro da linha
+    const rectY = cy - SPEC.row.height/2;
+    const date = escapeXml(ev.dateText);
+    const titleFitted = escapeXml(fitTitle(ev.title.toUpperCase()));
+    return `
+      <!-- linha ${idx+1} -->
+      <circle cx="${innerLeft + circleR}" cy="${cy}" r="${circleR}" fill="${WHITE}" stroke="${BLUE}" stroke-width="${SPEC.pill.stroke}" />
+      <text x="${innerLeft + circleR}" y="${cy+9}" text-anchor="middle" font-family="Inter, Roboto, Arial, sans-serif" font-size="${SPEC.pill.textSize}" font-weight="700" fill="${BLACK}">${date}</text>
+
+      <rect x="${rectXStart}" y="${rectY}" rx="${SPEC.card.radius}" ry="${SPEC.card.radius}" width="${rectW}" height="${SPEC.row.height}" fill="${BLUE}" />
+      <text x="${rectXStart + SPEC.card.leftPad}" y="${cy + Math.floor(SPEC.card.textSize/3)}" font-family="Anton, Impact, Arial Black, Arial, sans-serif" font-size="${SPEC.card.textSize}" font-weight="900" fill="${WHITE}" letter-spacing="2">${titleFitted}</text>
+    `;
+  }).join('');
+
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <clipPath id="posterClip">
+      <rect x="${BORDER/2}" y="${BORDER/2}" width="${W-BORDER}" height="${H-BORDER}" rx="${RADIUS}" ry="${RADIUS}" />
+    </clipPath>
+  </defs>
+
+  <rect x="0" y="0" width="${W}" height="${H}" fill="${BLACK}" />
+  <rect x="${BORDER/2}" y="${BORDER/2}" width="${W-BORDER}" height="${H-BORDER}" rx="${RADIUS}" ry="${RADIUS}" fill="${OFF}" stroke="${BLUE}" stroke-width="${BORDER}" />
+
+  ${logoTag}
+
+  <text x="${MARGIN}" y="${SPEC.title.top + SPEC.title.size}" text-anchor="start" font-family="Anton, Impact, Arial Black, Arial, sans-serif" font-size="${SPEC.title.size}" font-weight="900" fill="${BLACK}" letter-spacing="${SPEC.title.track}">${titleText}</text>
+
+  ${rows}
+</svg>`;
+  return svg;
+}
+
+app.get('/eventos/poster.png', async (req, res) => {
+  try {
+    const d = new Date();
+    const monthStr = (req.query.month && /\d{4}-\d{2}/.test(req.query.month))
+      ? req.query.month
+      : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const [y, m] = monthStr.split('-').map(Number);
+    const ref = new Date(y, m-1, 1);
+    const { eventosMap, hasAny } = await readEventosDoMes(ref);
+    if (!hasAny) return res.status(404).send('SEM_EVENTOS');
+    const logoUri = await getLogoDataUri();
+    const page = Number(req.query.page || 1);
+    const perPage = Number(req.query.perPage || 5);
+    const svg = buildSvgPoster(ref, eventosMap, logoUri, { page, perPage });
+    const png = await sharp(Buffer.from(svg)).png().toBuffer();
+    res.set('Content-Type','image/png');
+    res.set('Cache-Control','public, max-age=3600');
+    return res.send(png);
+  } catch (e) {
+    console.error('[EventosPoster] Erro:', e?.message || e);
+    return res.status(500).send('erro');
+  }
+});
+
+// Lista de links para todas as páginas de pôster (5 eventos por página)
+app.get('/eventos/posters.json', async (req, res) => {
+  try {
+    const baseUrl = (process.env.PUBLIC_BASE_URL || '').trim() || `${req.protocol}://${req.get('host')}`;
+    const d = new Date();
+    const monthStr = (req.query.month && /\d{4}-\d{2}/.test(req.query.month))
+      ? req.query.month
+      : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const [y, m] = monthStr.split('-').map(Number);
+    const ref = new Date(y, m-1, 1);
+    const { eventosMap, hasAny } = await readEventosDoMes(ref);
+    if (!hasAny) return res.json({ status: 'SEM_EVENTOS' });
+    const all = getAllEventsSorted(eventosMap);
+    const perPage = Number(req.query.perPage || 5);
+    const pages = Math.max(1, Math.ceil(all.length / perPage));
+    const links = Array.from({length: pages}).map((_,i)=>`${baseUrl}/eventos/poster.png?month=${monthStr}&page=${i+1}&perPage=${perPage}`);
+    return res.json({ status: 'OK', links });
+  } catch (e) {
+    console.error('[EventosPosters] Erro:', e?.message || e);
+    return res.json({ status: 'ERRO', erro: e?.message || String(e) });
+  }
+});
+
+// ================================================================
+// Poster v2 (design refinado) - rotas experimentais
+// ================================================================
+function buildSvgPosterV2(reference, eventosMap, logoDataUri, options = {}) {
+  const W = 1080, H = 1080;
+  const M = 40; // margem externa
+  const BORDER = 10, R = 28;
+  const BLUE = '#044372', OFF = '#F9F7F2', BLACK = '#111111', WHITE = '#FFFFFF';
+
+  const ROW_H = 96, ROW_GAP = 24, PILL_D = 84, CARD_RADIUS = 48, CARD_PAD_L = 28;
+  const CARD_RIGHT_MARGIN = 8; // aproxima o cartão da borda direita
+  const TITLE_MAX = 150, TITLE_MIN = 96, TRACK = 2; // letter-spacing px
+  const CARD_TEXT = 60, CARD_TEXT_SMALL = 52;
+
+  const hasLogo = Boolean(logoDataUri);
+  const titleText = 'PRÓXIMOS EVENTOS';
+
+  const circleR = PILL_D/2;
+  const innerLeft = M, innerRight = W - M;
+  const rectXStart = innerLeft + PILL_D + 12; // pílula + gap menor p/ sobrepor visualmente
+  const rectUsableW = innerRight - rectXStart;
+  const rectW = Math.max(120, rectUsableW - CARD_RIGHT_MARGIN);
+
+  const approxWidth = (t, px, track) => t.length * px * 0.62 + Math.max(0, t.length-1) * track;
+  const titleMaxWidth = W - 2*M - (hasLogo ? 160 : 0);
+  let titleSize = TITLE_MAX;
+  while (approxWidth(titleText, titleSize, TRACK) > titleMaxWidth && titleSize > TITLE_MIN) titleSize -= 4;
+
+  const startY = 60 + titleSize + 40; // abaixo do título
+
+  const allEvents = getAllEventsSorted(eventosMap).map(e => ({
+    dateText: formatMonthDay(e.date),
+    title: stripDateFromTitle(String(e.title||'').trim()).toUpperCase(),
+  }));
+  const page = Number(options.page || 1);
+  const perPage = Number(options.perPage || 5);
+  const start = (page - 1) * perPage;
+  const events = allEvents.slice(start, start + perPage);
+
+  // Logo principal no rodapé esquerdo, 100x100
+  const logoTag = logoDataUri ? `<image href="${logoDataUri}" x="${M+6}" y="${H - M - 110}" width="100" height="100" preserveAspectRatio="xMidYMid meet" />` : '';
+
+  function fitCardTitle(text) {
+    const maxChars = Math.floor((rectW - CARD_PAD_L - 20) / (CARD_TEXT * 0.52));
+    if (text.length <= maxChars) return { text, size: CARD_TEXT };
+    const maxCharsSmall = Math.floor((rectW - CARD_PAD_L - 20) / (CARD_TEXT_SMALL * 0.52));
+    if (text.length <= maxCharsSmall) return { text, size: CARD_TEXT_SMALL };
+    return { text: text.slice(0, Math.max(0, maxCharsSmall-1)) + '…', size: CARD_TEXT_SMALL };
+  }
+
+  const rows = events.map((ev, idx) => {
+    const cy = startY + idx * (ROW_H + ROW_GAP) + ROW_H/2;
+    const yRect = cy - ROW_H/2;
+    const date = escapeXml(ev.dateText);
+    const f = fitCardTitle(ev.title);
+    const fitted = escapeXml(f.text);
+    const yText = cy + Math.floor(f.size/3);
+    return `
+      <circle cx="${innerLeft + circleR}" cy="${cy}" r="${circleR}" fill="${WHITE}" stroke="${BLUE}" stroke-width="4" />
+      <text x="${innerLeft + circleR}" y="${cy+9}" text-anchor="middle" font-family="Inter, Roboto, Arial, sans-serif" font-size="28" font-weight="700" fill="${BLACK}">${date}</text>
+      <rect x="${rectXStart}" y="${yRect}" rx="${CARD_RADIUS}" ry="${CARD_RADIUS}" width="${rectW}" height="${ROW_H}" fill="${BLUE}" />
+      <text x="${rectXStart + CARD_PAD_L}" y="${yText}" font-family="Anton, Impact, Arial Black, Arial, sans-serif" font-size="${f.size}" font-weight="900" fill="${WHITE}" letter-spacing="2">${fitted}</text>
+    `;
+  }).join('');
+
+  const fAntonio = options.fontAntonio || '';
+  const fChewy = options.fontChewy || '';
+  const styleFonts = `
+    <style>
+      ${fAntonio ? `@font-face { font-family: 'Antonio'; src: url(${fAntonio}) format('woff2'); font-weight: 700; font-style: normal; }` : ''}
+      ${fChewy ? `@font-face { font-family: 'Chewy'; src: url(${fChewy}) format('woff2'); font-weight: 400; font-style: normal; }` : ''}
+    </style>
+  `;
+
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+  ${styleFonts}
+  <rect x="0" y="0" width="${W}" height="${H}" fill="#000" />
+  <rect x="${BORDER/2}" y="${BORDER/2}" width="${W-BORDER}" height="${H-BORDER}" rx="${R}" ry="${R}" fill="${OFF}" stroke="${BLUE}" stroke-width="${BORDER}" />
+  <text x="${M}" y="${60 + titleSize}" text-anchor="start" font-family="Antonio, Anton, Impact, Arial Black, Arial, sans-serif" font-size="${titleSize}" font-weight="900" fill="${BLACK}" letter-spacing="${TRACK}">${titleText}</text>
+  ${rows}
+  ${logoTag}
+  <text x="${M + 120 + 20}" y="${H - M - 60}" text-anchor="start" font-family="Chewy, 'Segoe UI', Inter, Arial, sans-serif" font-size="54" font-weight="800" fill="${BLUE}">EAC - Encontro de Adolescentes</text>
+</svg>`;
+  return svg;
+}
+
+app.get('/eventos/poster2.png', async (req, res) => {
+  try {
+    const d = new Date();
+    const monthStr = (req.query.month && /\d{4}-\d{2}/.test(req.query.month)) ? req.query.month : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const [y, m] = monthStr.split('-').map(Number);
+    const ref = new Date(y, m-1, 1);
+    const { eventosMap, hasAny } = await readEventosDoMes(ref);
+    if (!hasAny) return res.status(404).send('SEM_EVENTOS');
+    const logoUri = await getLogoDataUri();
+    const fontAntonio = await getFontDataUri('antonio');
+    const fontChewy = await getFontDataUri('chewy');
+    const page = Number(req.query.page || 1);
+    const perPage = Number(req.query.perPage || 5);
+    const svg = buildSvgPosterV2(ref, eventosMap, logoUri, { page, perPage, fontAntonio, fontChewy });
+    const png = await sharp(Buffer.from(svg)).png().toBuffer();
+    res.type('image/png').send(png);
+  } catch (e) {
+    console.error('[Poster2] Erro:', e?.message || e);
+    res.status(500).send('erro');
+  }
+});
+
+app.get('/eventos/posters2.json', async (req, res) => {
+  try {
+    const baseUrl = (process.env.PUBLIC_BASE_URL || '').trim() || `${req.protocol}://${req.get('host')}`;
+    const d = new Date();
+    const monthStr = (req.query.month && /\d{4}-\d{2}/.test(req.query.month)) ? req.query.month : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const [y, m] = monthStr.split('-').map(Number);
+    const ref = new Date(y, m-1, 1);
+    const { eventosMap, hasAny } = await readEventosDoMes(ref);
+    if (!hasAny) return res.json({ status: 'SEM_EVENTOS' });
+    const all = getAllEventsSorted(eventosMap);
+    const perPage = Number(req.query.perPage || 5);
+    const pages = Math.max(1, Math.ceil(all.length / perPage));
+    const links = Array.from({length: pages}).map((_,i)=>`${baseUrl}/eventos/poster2.png?month=${monthStr}&page=${i+1}&perPage=${perPage}`);
+    return res.json({ status: 'OK', links });
+  } catch (e) {
+    console.error('[Posters2] Erro:', e?.message || e);
+    return res.json({ status: 'ERRO', erro: e?.message || String(e) });
+  }
+});
 
 // sender WA mínimo (usado só se você não tiver um global)
 async function enviarWhatsAppTemplateLocal(numero, templateName, variaveis = []) {
@@ -722,6 +1395,45 @@ app.post("/webhook", async (req, res) => {
       return res.sendStatus(200);
     }
 
+    // ===== NOVO FLUXO (SVG+sharp) para opção "6 - Eventos" =====
+    // Mantém bloco legado abaixo para rollback, porém este if consome e retorna antes
+    if (textoRecebido === "6") {
+      const saudacao = "Agenda de Eventos do EAC - Mes Atual";
+      try {
+        const baseUrl = (process.env.PUBLIC_BASE_URL || '').trim() || `${req.protocol}://${req.get('host')}`;
+        const dNow = new Date();
+        const monthStr = `${dNow.getFullYear()}-${String(dNow.getMonth()+1).padStart(2,'0')}`;
+        const link = `${baseUrl}/eventos/calendario.png?month=${monthStr}`;
+
+        // Checa status para evitar enviar imagem vazia
+        try {
+          const st = await axios.get(`${baseUrl}/eventos/status.json?month=${monthStr}`, { timeout: 8000 });
+          if (st?.data?.status === 'SEM_EVENTOS') {
+            await enviarMensagem(numero, "�s���? Ainda nǜo hǭ eventos cadastrados para este mǦs.");
+            return res.sendStatus(200);
+          }
+        } catch (_) { /* segue */ }
+
+        await enviarMensagem(numero, saudacao);
+        await axios.post(
+          graphUrl(`${phone_number_id}/messages`),
+          {
+            messaging_product: "whatsapp",
+            to: numero,
+            type: "image",
+            image: { link },
+          },
+          { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } }
+        );
+      } catch (erro) {
+        console.error("[Eventos/6] Erro ao gerar/enviar calendário:", erro?.response?.data || erro?.message || erro);
+        await enviarMensagem(numero, "�?O Nǜo conseguimos carregar a agenda agora. Tente novamente mais tarde.");
+      }
+
+      return res.sendStatus(200);
+    }
+    
+    // [LEGADO - Apps Script] Bloco abaixo mantido para rollback; fluxo novo retorna antes
     if (textoRecebido === "6") {
       const saudacao = "📅 *Agenda de Eventos do EAC - Mês Atual*";
       try {
