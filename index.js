@@ -850,7 +850,8 @@ function buildSvgPosterV2(reference, eventosMap, logoDataUri, options = {}) {
   const BORDER = 10, R = 28;
   const BLUE = '#044372', OFF = '#F9F7F2', BLACK = '#111111', WHITE = '#FFFFFF';
 
-  const ROW_H = 96, ROW_GAP = 24, PILL_D = 84, CARD_RADIUS = 48, CARD_RATIO = 0.86, CARD_PAD_L = 28;
+  const ROW_H = 96, ROW_GAP = 24, PILL_D = 84, CARD_RADIUS = 48, CARD_PAD_L = 28;
+  const CARD_RIGHT_MARGIN = 8; // aproxima o cartão da borda direita
   const TITLE_MAX = 150, TITLE_MIN = 96, TRACK = 2; // letter-spacing px
   const CARD_TEXT = 60, CARD_TEXT_SMALL = 52;
 
@@ -861,7 +862,7 @@ function buildSvgPosterV2(reference, eventosMap, logoDataUri, options = {}) {
   const innerLeft = M, innerRight = W - M;
   const rectXStart = innerLeft + PILL_D + 12; // pílula + gap menor p/ sobrepor visualmente
   const rectUsableW = innerRight - rectXStart;
-  const rectW = Math.floor(rectUsableW * CARD_RATIO);
+  const rectW = Math.max(120, rectUsableW - CARD_RIGHT_MARGIN);
 
   const approxWidth = (t, px, track) => t.length * px * 0.62 + Math.max(0, t.length-1) * track;
   const titleMaxWidth = W - 2*M - (hasLogo ? 160 : 0);
