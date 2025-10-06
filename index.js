@@ -616,15 +616,18 @@ function escapeXml(s="") {
   return s.replace(/[&<>]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[ch]));
 }
 
+// Helpers para stripDateFromTitle
+const RE_TRAIL_SLASH_DATE = new RegExp("\\s*[\\-\\u2013\\u2014]\\s*\\d{1,2}/\\d{1,2}(?:/\\d{2,4})?\\s*$","u");
+const RE_TRAIL_TEXTUAL_DATE = new RegExp("\\s*[\\-\\u2013\\u2014]\\s*\\d{1,2}\\s+de\\s+[A-Za-z\\u00C0-\\u024F]+\\s*$","u");
 
 // Remove fragmentos de data no título (ex.: " - 05/10\ ou " - 05 de Outubro\)
 function stripDateFromTitle(t) {
   let s = t;
   // padrões comuns com separadores -, – (\\u2013) ou — (\\u2014)
-  s = s.replace(/\\s*[\\-\\u2013\\u2014]\\s*\\d{1,2}\\/\\d{1,2}(?:\\/\\d{2,4})?\\s*$/u, ");
- s = s.replace(/\\s*[\\-\\u2013\\u2014]\\s*\\d{1,2}\\s+de\\s+[\\u0100-\\uFFFFA-Za-z]+\\s*$/u, );
+  try { s = s.replace(RE_TRAIL_SLASH_DATE, ""); } catch (e) {}
+  try { s = s.replace(RE_TRAIL_TEXTUAL_DATE, ""); } catch (e) {}
  // espaços duplos
- s = s.replace(/\\s{2,}/g, " \).trim();
+  s = s.replace(/\s{2,}/g, " ").trim();
   return s;
 }
 async function getOrRenderCalendarPng(monthStr) {
@@ -1404,11 +1407,12 @@ app.post("/webhook", async (req, res) => {
         const postersUrl = `${baseUrl}/eventos/posters2.json?month=${monthStr}`;
         const { data } = await axios.get(postersUrl, { timeout: 10000 });
         const links = Array.isArray(data?.links) ? data.links : [];
+        console.log(`[Eventos/6] posters2.json -> url=${postersUrl} links=${links.length}`);
         if (!links.length) {
-          await enviarMensagem(numero, "⚠️ Ainda não há eventos cadastrados para este mês.");
+          await enviarMensagem(numero, "Ainda nao ha eventos cadastrados para este mes.");
           return res.sendStatus(200);
         }
-        await enviarMensagem(numero, "📅 Próximos Eventos");
+        await enviarMensagem(numero, "Proximos Eventos");
         for (const link of links) {
           await axios.post(
             graphUrl(`${phone_number_id}/messages`),
@@ -1423,83 +1427,6 @@ app.post("/webhook", async (req, res) => {
       return res.sendStatus(200);
     }
 
-    // ===== NOVO FLUXO (SVG+sharp) para opÃ§Ã£o "6 - Eventos" =====
-    // MantÃ©m bloco legado abaixo para rollback, porÃ©m este if consome e retorna antes
-    if (textoRecebido === "6") {
-      const saudacao = "Agenda de Eventos do EAC - Mes Atual";
-      try {
-        const baseUrl = (process.env.PUBLIC_BASE_URL || '').trim() || `${req.protocol}://${req.get('host')}`;
-        const dNow = new Date();
-        const monthStr = `${dNow.getFullYear()}-${String(dNow.getMonth()+1).padStart(2,'0')}`;
-        const postersUrl =  `${baseUrl}/eventos/posters2.json?month=${monthStr}`; 
-        const { data: posters } = await axios.get(postersUrl, { timeout: 10000 });
-        const links = Array.isArray(posters?.links) ? posters.links : [];
-        try {
-        if ( !links.length) { 
-          await enviarMensagem(numero, " Ainda não há eventos cadastrados para este mês.\);
- return res.sendStatus(200);
- }
-
- await enviarMensagem(numero, \📅 Próximos Eventos\);
- for (const link of links) {
- await axios.post(
- graphUrl(`${phone_number_id}/messages`),
- { messaging_product: \whatsapp\, to: numero, type: \image\, image: { link } },
- { headers: { Authorization: `Bearer ${token}`, Content-Type: application/json } }
- );
- }
-            type: "image",
-            image: { link },
-          },
-          { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } }
-        );
-      } catch (erro) {
-        console.error("[Eventos/6] Erro ao gerar/enviar calendÃ¡rio:", erro?.response?.data || erro?.message || erro);
-        await enviarMensagem(numero, "ï¿½?O NÇœo conseguimos carregar a agenda agora. Tente novamente mais tarde.");
-      }
-
-      return res.sendStatus(200);
-    }
-    
-    // [LEGADO - Apps Script] Bloco abaixo mantido para rollback; fluxo novo retorna antes
-    if (textoRecebido === "6") {
-      const saudacao = "ðŸ“… *Agenda de Eventos do EAC - MÃªs Atual*";
-      try {
-        const resposta = await axios.get(process.env.URL_APP_SCRIPT_EVENTOS);
-        const { status, links } = resposta.data;
-
-        if (status === "SEM_EVENTOS") {
-          await enviarMensagem(numero, "âš ï¸ Ainda nÃ£o hÃ¡ eventos cadastrados para este mÃªs.");
-        } else if (links) {
-          const imagens = Array.isArray(links) ? links : [links];
-          await enviarMensagem(numero, saudacao);
-          for (const link of imagens) {
-            await axios.post(
-              graphUrl(`${phone_number_id}/messages`),
-              {
-                messaging_product: "whatsapp",
-                to: numero,
-                type: "image",
-                image: { link },
-              },
-              {
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                  "Content-Type": "application/json",
-                },
-              }
-            );
-          }
-        } else {
-          await enviarMensagem(numero, "âš ï¸ Ocorreu um erro ao buscar os eventos.");
-        }
-      } catch (erro) {
-        console.error("Erro ao buscar eventos do mÃªs:", erro);
-        await enviarMensagem(numero, "âŒ NÃ£o conseguimos carregar a agenda agora. Tente novamente mais tarde.");
-      }
-
-      return res.sendStatus(200);
-    }
 
     const fallback = [
       "ðŸ¤– Opa! NÃ£o entendi bem sua mensagem...",
