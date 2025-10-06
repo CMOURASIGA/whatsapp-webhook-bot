@@ -691,7 +691,7 @@ function buildSvgPoster(reference, eventosMap, logoDataUri, options = {}) {
   const RADIUS = 28;
   const BORDER = 10;
   const MARGIN = 40;
-  const BLUE = '#2457D6';
+  const BLUE = '#044372';
   const OFF = '#F9F7F2';
   const BLACK = '#111111';
   const WHITE = '#FFFFFF';
@@ -818,7 +818,7 @@ function buildSvgPosterV2(reference, eventosMap, logoDataUri, options = {}) {
   const W = 1080, H = 1080;
   const M = 40; // margem externa
   const BORDER = 10, R = 28;
-  const BLUE = '#2457D6', OFF = '#F9F7F2', BLACK = '#111111', WHITE = '#FFFFFF';
+  const BLUE = '#044372', OFF = '#F9F7F2', BLACK = '#111111', WHITE = '#FFFFFF';
 
   const ROW_H = 96, ROW_GAP = 24, PILL_D = 84, CARD_RADIUS = 48, CARD_RATIO = 0.86, CARD_PAD_L = 28;
   const TITLE_MAX = 150, TITLE_MIN = 96, TRACK = 2; // letter-spacing px
