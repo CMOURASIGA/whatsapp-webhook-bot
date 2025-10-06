@@ -636,6 +636,129 @@ app.get('/eventos/status.json', async (req, res) => {
   }
 });
 
+// ================================================================
+// NOVA SAÍDA: PÔSTER 1080x1080 (lista de eventos)
+// ================================================================
+function formatMonthDay(dt) {
+  const m = dt.getMonth() + 1;
+  const d = dt.getDate();
+  return `${m}/${d}`; // estilo 6/20
+}
+
+function pickTopEvents(eventosMap, limit = 5) {
+  const list = [];
+  for (const k of Object.keys(eventosMap)) {
+    const day = Number(k);
+    for (const e of eventosMap[k]) {
+      list.push({ date: e.date, title: e.title });
+    }
+  }
+  list.sort((a,b) => {
+    const ta = a.date?.getTime?.() || 0;
+    const tb = b.date?.getTime?.() || 0;
+    if (ta !== tb) return ta - tb;
+    return String(a.title||'').localeCompare(String(b.title||''));
+  });
+  return list.slice(0, limit);
+}
+
+function buildSvgPoster(reference, eventosMap, logoDataUri) {
+  const W = 1080, H = 1080;
+  const RADIUS = 28;
+  const BORDER = 10;
+  const MARGIN = 40;
+  const BLUE = '#2457D6';
+  const OFF = '#F9F7F2';
+  const BLACK = '#111111';
+  const WHITE = '#FFFFFF';
+
+  const title = 'EVENTOS DO MÊS';
+  const rowH = 96;
+  const rowGap = 24;
+  const startY = 220; // abaixo do título
+  const circleR = 36; // diâmetro 72
+  const pillGap = 20;
+  const innerLeft = MARGIN;
+  const innerRight = W - MARGIN;
+  const rectXStart = innerLeft + circleR*2 + pillGap;
+  const rectUsableW = innerRight - rectXStart;
+  const rectW = Math.floor(rectUsableW * 0.8);
+  const rectRadius = 48;
+
+  const monthName = CAL_MONTHS[reference.getMonth()];
+
+  const events = pickTopEvents(eventosMap, 5).map(e => ({
+    dateText: formatMonthDay(e.date),
+    title: stripDateFromTitle(String(e.title||'').trim())
+  }));
+
+  const logoTag = logoDataUri ? `<image href="${logoDataUri}" x="${W- MARGIN - 120}" y="${MARGIN}" width="120" height="120" preserveAspectRatio="xMidYMid meet" />` : '';
+
+  // Função para elipse do título dentro do retângulo
+  function fitTitle(t) {
+    const maxChars = Math.floor((rectW - 40) / (48 * 0.55)); // fonte grande condensada ~48px
+    if (t.length <= maxChars) return t;
+    return t.slice(0, Math.max(0, maxChars-1)) + '…';
+  }
+
+  const rows = events.map((ev, idx) => {
+    const cy = startY + idx * (rowH + rowGap) + rowH/2; // centro da linha
+    const rectY = cy - rowH/2;
+    const date = escapeXml(ev.dateText);
+    const titleFitted = escapeXml(fitTitle(ev.title.toUpperCase()));
+    return `
+      <!-- linha ${idx+1} -->
+      <circle cx="${innerLeft + circleR}" cy="${cy}" r="${circleR}" fill="${WHITE}" stroke="${BLUE}" stroke-width="3" />
+      <text x="${innerLeft + circleR}" y="${cy+6}" text-anchor="middle" font-family="Inter, Roboto, Arial, sans-serif" font-size="24" font-weight="700" fill="${BLACK}">${date}</text>
+
+      <rect x="${rectXStart}" y="${rectY}" rx="${rectRadius}" ry="${rectRadius}" width="${rectW}" height="${rowH}" fill="${BLUE}" />
+      <text x="${rectXStart + 20}" y="${cy+16}" font-family="Anton, Impact, Arial Black, Arial, sans-serif" font-size="48" font-weight="900" fill="${WHITE}" letter-spacing="2">${titleFitted}</text>
+    `;
+  }).join('');
+
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <clipPath id="posterClip">
+      <rect x="${BORDER/2}" y="${BORDER/2}" width="${W-BORDER}" height="${H-BORDER}" rx="${RADIUS}" ry="${RADIUS}" />
+    </clipPath>
+  </defs>
+
+  <rect x="0" y="0" width="${W}" height="${H}" fill="${BLACK}" />
+  <rect x="${BORDER/2}" y="${BORDER/2}" width="${W-BORDER}" height="${H-BORDER}" rx="${RADIUS}" ry="${RADIUS}" fill="${OFF}" stroke="${BLUE}" stroke-width="${BORDER}" />
+
+  ${logoTag}
+
+  <text x="${MARGIN}" y="${150}" text-anchor="start" font-family="Anton, Impact, Arial Black, Arial, sans-serif" font-size="88" font-weight="900" fill="${BLACK}" letter-spacing="3">EVENTOS DO MÊS</text>
+  <text x="${MARGIN}" y="${190}" font-family="Inter, Roboto, Arial, sans-serif" font-size="22" fill="#444">${escapeXml(monthName)} ${reference.getFullYear()}</text>
+
+  ${rows}
+</svg>`;
+  return svg;
+}
+
+app.get('/eventos/poster.png', async (req, res) => {
+  try {
+    const d = new Date();
+    const monthStr = (req.query.month && /\d{4}-\d{2}/.test(req.query.month))
+      ? req.query.month
+      : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const [y, m] = monthStr.split('-').map(Number);
+    const ref = new Date(y, m-1, 1);
+    const { eventosMap, hasAny } = await readEventosDoMes(ref);
+    if (!hasAny) return res.status(404).send('SEM_EVENTOS');
+    const logoUri = await getLogoDataUri();
+    const svg = buildSvgPoster(ref, eventosMap, logoUri);
+    const png = await sharp(Buffer.from(svg)).png().toBuffer();
+    res.set('Content-Type','image/png');
+    res.set('Cache-Control','public, max-age=3600');
+    return res.send(png);
+  } catch (e) {
+    console.error('[EventosPoster] Erro:', e?.message || e);
+    return res.status(500).send('erro');
+  }
+});
+
 // sender WA mínimo (usado só se você não tiver um global)
 async function enviarWhatsAppTemplateLocal(numero, templateName, variaveis = []) {
   const token = process.env.WHATSAPP_TOKEN;
