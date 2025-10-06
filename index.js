@@ -5,6 +5,7 @@ const express = require("express");
 const axios = require("axios");
 const { google } = require("googleapis");
 const cron = require("node-cron");
+const sharp = require("sharp");
 
 const app = express();
 app.use(express.json());
@@ -296,6 +297,221 @@ function getSheetsClientLocal() {
   );
   return google.sheets({ version: "v4", auth: jwt });
 }
+
+// ================================================================
+// NOVO GERADOR DE CALENDÁRIO (SVG -> PNG via sharp)
+// Mantém tudo aqui para facilitar rollback do fluxo de eventos
+// ================================================================
+
+const CAL_PAGE_W = 960;
+const CAL_PAGE_H = 540;
+const CAL_MARGIN_X = 24;
+const CAL_TITLE_H = 42;
+const CAL_HEADER_H = 24;
+const CAL_MARGIN_TOP = 20 + CAL_TITLE_H + CAL_HEADER_H + 8;
+const CAL_GRID_W = CAL_PAGE_W - CAL_MARGIN_X * 2;
+const CAL_GRID_H = CAL_PAGE_H - CAL_MARGIN_TOP - 20;
+const CAL_COLS = 7;
+const CAL_ROWS = 7; // 1 header + 6 semanas
+const CAL_CELL_W = CAL_GRID_W / CAL_COLS;
+const CAL_CELL_H = CAL_GRID_H / (CAL_ROWS - 1);
+const CAL_MAX_EVENT_LINES = 4;
+const CAL_TZ = "America/Sao_Paulo";
+const CAL_DOW = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+const CAL_MONTHS = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+
+const __cal_cache = new Map(); // key: YYYY-MM -> { buf, expiresAt }
+
+function calKeyFromDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+function startOfMonth(d) {
+  const dt = new Date(d);
+  dt.setDate(1); dt.setHours(0,0,0,0);
+  return dt;
+}
+
+function endOfMonth(d) {
+  const dt = new Date(d.getFullYear(), d.getMonth()+1, 0);
+  dt.setHours(23,59,59,999);
+  return dt;
+}
+
+function parseDateFlexBRorNative(s) {
+  const re = /^\d{2}\/\d{2}\/\d{4}$/;
+  if (re.test(s)) {
+    const [dd, mm, yyyy] = s.split("/");
+    const d = new Date(Number(yyyy), Number(mm)-1, Number(dd));
+    if (isNaN(d.getTime())) return null;
+    d.setHours(0,0,0,0);
+    return d;
+  }
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return null;
+  d.setHours(0,0,0,0);
+  return d;
+}
+
+async function readEventosDoMes(reference) {
+  const spreadsheetId = process.env.SPREADSHEET_ID_EVENTOS || "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8";
+  const range = "comunicados!A2:G"; // B: título (idx 1), G: data (idx 6)
+  const sheets = getSheetsClientLocal();
+  const ini = startOfMonth(reference);
+  const fim = endOfMonth(reference);
+
+  const get = await sheets.spreadsheets.values.get({ spreadsheetId, range });
+  const rows = get?.data?.values || [];
+  const eventosMap = {}; // day -> [lines]
+
+  for (const row of rows) {
+    const titulo = (row[1] || '').toString().trim(); // coluna B
+    const dataStr = (row[6] || '').toString().trim(); // coluna G
+    if (!titulo || !dataStr) continue;
+    const dt = parseDateFlexBRorNative(dataStr);
+    if (!dt) continue;
+    if (dt >= ini && dt <= fim) {
+      const day = dt.getDate();
+      const label = `${dt.toLocaleDateString('pt-BR',{ timeZone: CAL_TZ, day:'2-digit', month:'2-digit' })} - ${titulo}`;
+      if (!eventosMap[day]) eventosMap[day] = [];
+      eventosMap[day].push(label);
+    }
+  }
+  // ordenar por label
+  Object.keys(eventosMap).forEach(k => eventosMap[k].sort());
+  const hasAny = Object.keys(eventosMap).length > 0;
+  return { eventosMap, hasAny };
+}
+
+function limitarEventos(lines, max) {
+  if (lines.length <= max) return lines;
+  const shown = lines.slice(0, max-1);
+  const rest = lines.length - (max-1);
+  shown.push(`+${rest} mais`);
+  return shown;
+}
+
+function buildSvgCalendario(reference, eventosMap) {
+  const monthName = CAL_MONTHS[reference.getMonth()];
+  const title = `Agenda de Eventos – ${monthName} ${reference.getFullYear()}`;
+  const first = new Date(reference.getFullYear(), reference.getMonth(), 1);
+  const firstDow = first.getDay(); // 0=Dom
+  const lastDay = new Date(reference.getFullYear(), reference.getMonth()+1, 0).getDate();
+
+  // Build SVG elements for header days and grid lines
+  const headerDays = CAL_DOW.map((name, i) => {
+    const x = CAL_MARGIN_X + i * CAL_CELL_W + CAL_CELL_W/2;
+    const y = 20 + CAL_TITLE_H + CAL_HEADER_H - 8;
+    return `<text x="${x}" y="${y}" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#444">${name}</text>`;
+  }).join('');
+
+  const gridTop = CAL_MARGIN_TOP;
+  const linesH = Array.from({length: (CAL_ROWS-1)+1}, (_,r)=>{
+    const y = gridTop + r * CAL_CELL_H;
+    return `<line x1="${CAL_MARGIN_X}" y1="${y}" x2="${CAL_MARGIN_X + CAL_GRID_W}" y2="${y}" stroke="#DDD" stroke-width="1" />`;
+  }).join('');
+  const linesV = Array.from({length: CAL_COLS+1}, (_,c)=>{
+    const x = CAL_MARGIN_X + c * CAL_CELL_W;
+    return `<line x1="${x}" y1="${gridTop}" x2="${x}" y2="${gridTop + CAL_GRID_H}" stroke="#DDD" stroke-width="1" />`;
+  }).join('');
+
+  // Fill days
+  let row = 0, col = firstDow;
+  const cells = [];
+  for (let day=1; day<=lastDay; day++) {
+    const x = CAL_MARGIN_X + col * CAL_CELL_W;
+    const y = gridTop + row * CAL_CELL_H;
+    const dayX = x + CAL_CELL_W - 8;
+    const dayY = y + 16;
+    const eventos = eventosMap[day] || [];
+    const lines = limitarEventos(eventos, CAL_MAX_EVENT_LINES);
+    const evText = lines.map((l, idx)=>{
+      const ty = y + 30 + idx*14;
+      return `<text x="${x+6}" y="${ty}" font-family="Arial, sans-serif" font-size="11" fill="#222">${escapeXml(l)}</text>`;
+    }).join('');
+    cells.push(
+      `<text x="${dayX}" y="${dayY}" text-anchor="end" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#222">${day}</text>` +
+      evText
+    );
+    col++; if (col>=CAL_COLS) { col=0; row++; }
+  }
+
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="${CAL_PAGE_W}" height="${CAL_PAGE_H}" viewBox="0 0 ${CAL_PAGE_W} ${CAL_PAGE_H}" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="${CAL_PAGE_W}" height="${CAL_PAGE_H}" fill="#FFFFFF" />
+  <text x="${CAL_PAGE_W/2}" y="${20 + CAL_TITLE_H - 12}" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#111">${escapeXml(title)}</text>
+  ${headerDays}
+  ${linesH}
+  ${linesV}
+  ${cells.join('')}
+</svg>`;
+  return svg;
+}
+
+function escapeXml(s="") {
+  return s.replace(/[&<>]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[ch]));
+}
+
+async function getOrRenderCalendarPng(monthStr) {
+  const now = Date.now();
+  const cached = __cal_cache.get(monthStr);
+  if (cached && cached.expiresAt > now) return cached.buf;
+
+  const [y, m] = monthStr.split('-').map(Number);
+  const ref = new Date(y, m-1, 1);
+  const { eventosMap, hasAny } = await readEventosDoMes(ref);
+
+  if (!hasAny) {
+    // Gera uma imagem simples "Sem eventos" para manter compatibilidade visual
+    const svg = `<?xml version="1.0"?><svg width="${CAL_PAGE_W}" height="${CAL_PAGE_H}" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="#fff"/><text x="50%" y="50%" font-family="Arial, sans-serif" font-size="24" text-anchor="middle" fill="#333">Sem eventos neste mês</text></svg>`;
+    const buf = await sharp(Buffer.from(svg)).png().toBuffer();
+    __cal_cache.set(monthStr, { buf, expiresAt: now + 60*60*1000 }); // 1h
+    return buf;
+  }
+
+  const refDate = new Date(y, m-1, 1);
+  const svg = buildSvgCalendario(refDate, eventosMap);
+  const png = await sharp(Buffer.from(svg)).png().toBuffer();
+  __cal_cache.set(monthStr, { buf: png, expiresAt: now + 6*60*60*1000 }); // 6h
+  return png;
+}
+
+// Rota PNG direta
+app.get('/eventos/calendario.png', async (req, res) => {
+  try {
+    const d = new Date();
+    const monthStr = (req.query.month && /\d{4}-\d{2}/.test(req.query.month))
+      ? req.query.month
+      : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const png = await getOrRenderCalendarPng(monthStr);
+    res.set('Content-Type','image/png');
+    res.set('Cache-Control','public, max-age=3600');
+    return res.send(png);
+  } catch (e) {
+    console.error('[EventosPNG] Erro:', e?.message || e);
+    return res.status(500).send('erro');
+  }
+});
+
+// Rota JSON compatível com contrato antigo
+app.get('/eventos/status.json', async (req, res) => {
+  try {
+    const d = new Date();
+    const monthStr = (req.query.month && /\d{4}-\d{2}/.test(req.query.month))
+      ? req.query.month
+      : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const [y, m] = monthStr.split('-').map(Number);
+    const ref = new Date(y, m-1, 1);
+    const { hasAny } = await readEventosDoMes(ref);
+    if (!hasAny) return res.json({ status: 'SEM_EVENTOS' });
+    const baseUrl = (process.env.PUBLIC_BASE_URL || '').trim() || `${req.protocol}://${req.get('host')}`;
+    const link = `${baseUrl}/eventos/calendario.png?month=${monthStr}`;
+    return res.json({ status: 'OK', links: [link] });
+  } catch (e) {
+    console.error('[EventosJSON] Erro:', e?.message || e);
+    return res.json({ status: 'ERRO', erro: e?.message || String(e) });
+  }
+});
 
 // sender WA mínimo (usado só se você não tiver um global)
 async function enviarWhatsAppTemplateLocal(numero, templateName, variaveis = []) {
@@ -722,6 +938,45 @@ app.post("/webhook", async (req, res) => {
       return res.sendStatus(200);
     }
 
+    // ===== NOVO FLUXO (SVG+sharp) para opção "6 - Eventos" =====
+    // Mantém bloco legado abaixo para rollback, porém este if consome e retorna antes
+    if (textoRecebido === "6") {
+      const saudacao = "�Y". *Agenda de Eventos do EAC - MǦs Atual";
+      try {
+        const baseUrl = (process.env.PUBLIC_BASE_URL || '').trim() || `${req.protocol}://${req.get('host')}`;
+        const dNow = new Date();
+        const monthStr = `${dNow.getFullYear()}-${String(dNow.getMonth()+1).padStart(2,'0')}`;
+        const link = `${baseUrl}/eventos/calendario.png?month=${monthStr}`;
+
+        // Checa status para evitar enviar imagem vazia
+        try {
+          const st = await axios.get(`${baseUrl}/eventos/status.json?month=${monthStr}`, { timeout: 8000 });
+          if (st?.data?.status === 'SEM_EVENTOS') {
+            await enviarMensagem(numero, "�s���? Ainda nǜo hǭ eventos cadastrados para este mǦs.");
+            return res.sendStatus(200);
+          }
+        } catch (_) { /* segue */ }
+
+        await enviarMensagem(numero, saudacao);
+        await axios.post(
+          graphUrl(`${phone_number_id}/messages`),
+          {
+            messaging_product: "whatsapp",
+            to: numero,
+            type: "image",
+            image: { link },
+          },
+          { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } }
+        );
+      } catch (erro) {
+        console.error("[Eventos/6] Erro ao gerar/enviar calendário:", erro?.response?.data || erro?.message || erro);
+        await enviarMensagem(numero, "�?O Nǜo conseguimos carregar a agenda agora. Tente novamente mais tarde.");
+      }
+
+      return res.sendStatus(200);
+    }
+    
+    // [LEGADO - Apps Script] Bloco abaixo mantido para rollback; fluxo novo retorna antes
     if (textoRecebido === "6") {
       const saudacao = "📅 *Agenda de Eventos do EAC - Mês Atual*";
       try {
