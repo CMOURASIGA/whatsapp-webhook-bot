@@ -855,7 +855,7 @@ function buildSvgPosterV2(reference, eventosMap, logoDataUri, options = {}) {
 
   const ROW_H = 96, ROW_GAP = 24, PILL_D = 84, CARD_RADIUS = 48, CARD_PAD_L = 28;
   const CARD_RIGHT_MARGIN = 8; // aproxima o cartÃ£o da borda direita
-  const TITLE_MAX = 150, TITLE_MIN = 96, TRACK = 2; // letter-spacing px
+  // removed duplicate TITLE_MAX declaration (was 150/96)
   const TITLE_MAX = 130, TITLE_MIN = 90, TRACK = 2; // letter-spacing px
 
   const hasLogo = Boolean(logoDataUri);
