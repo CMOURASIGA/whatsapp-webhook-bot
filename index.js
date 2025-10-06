@@ -1,5 +1,5 @@
-// ================================================================
-// IMPORTAÇÕES E CONFIGURAÇÕES INICIAIS
+﻿// ================================================================
+// IMPORTAÃ‡Ã•ES E CONFIGURAÃ‡Ã•ES INICIAIS
 // ================================================================
 const express = require("express");
 const axios = require("axios");
@@ -10,15 +10,15 @@ const sharp = require("sharp");
 const app = express();
 app.use(express.json());
 
-// Idiomas de template configuráveis (default pt_BR)
+// Idiomas de template configurÃ¡veis (default pt_BR)
 const TEMPLATE_LANG = (process.env.WHATSAPP_TEMPLATE_LANG || "pt_BR").trim();
 const TEMPLATE_ANIV_LANG = (process.env.WHATSAPP_TEMPLATE_ANIV_LANG || TEMPLATE_LANG).trim();
 
-// Versão da Graph API (configurável). Padrão v20.0 para evitar 404 de versões antigas.
+// VersÃ£o da Graph API (configurÃ¡vel). PadrÃ£o v20.0 para evitar 404 de versÃµes antigas.
 const GRAPH_VERSION = process.env.GRAPH_API_VERSION || "v20.0";
 const graphUrl = (path) => `https://graph.facebook.com/${GRAPH_VERSION}/${path}`;
 
-// Throttling/Retry – controla ritmo de envios ao WhatsApp e backoff básico
+// Throttling/Retry â€“ controla ritmo de envios ao WhatsApp e backoff bÃ¡sico
 const THROTTLE_CONCURRENCY = Number(process.env.THROTTLE_CONCURRENCY || 2);
 const THROTTLE_DELAY_MS = Number(process.env.THROTTLE_DELAY_MS || 150);
 const RETRY_MAX = Number(process.env.RETRY_MAX || 2);
@@ -47,7 +47,7 @@ function releaseSlot() {
   if (next) next();
 }
 
-// Middleware compatível para aceitar Authorization: Bearer <CHAVE_DISPARO>
+// Middleware compatÃ­vel para aceitar Authorization: Bearer <CHAVE_DISPARO>
 // em /disparo sem quebrar o uso atual por query string ?chave=
 app.use((req, res, next) => {
   try {
@@ -55,19 +55,19 @@ app.use((req, res, next) => {
       const authHeader = req.headers.authorization || "";
       const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
       if (bearer && !req.query.chave) {
-        req.query.chave = bearer; // reaproveita a verificação existente da rota
+        req.query.chave = bearer; // reaproveita a verificaÃ§Ã£o existente da rota
       }
     }
-    // Proteção opcional do painel via Bearer (desativada por padrão)
+    // ProteÃ§Ã£o opcional do painel via Bearer (desativada por padrÃ£o)
     if (req.path === "/painel" && String(process.env.PAINEL_REQUIRE_AUTH).toLowerCase() === "true") {
       const authHeader = req.headers.authorization || "";
       const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
       if (!process.env.CHAVE_DISPARO || bearer !== process.env.CHAVE_DISPARO) {
-        return res.status(401).send("Acesso não autorizado.");
+        return res.status(401).send("Acesso nÃ£o autorizado.");
       }
     }
   } catch (e) {
-    // Em caso de erro no middleware, não bloqueia a requisição
+    // Em caso de erro no middleware, nÃ£o bloqueia a requisiÃ§Ã£o
   }
   next();
 });
@@ -77,7 +77,7 @@ const token = process.env.WHATSAPP_TOKEN || process.env.TOKEN_WHATSAPP || "";
 const phone_number_id = process.env.WHATSAPP_PHONE_NUMBER_ID || "572870979253681";
 const TELEFONE_CONTATO_HUMANO = process.env.TELEFONE_CONTATO_HUMANO;
 
-// Healthcheck e verificação do webhook (GET)
+// Healthcheck e verificaÃ§Ã£o do webhook (GET)
 app.get("/healthz", (req, res) => res.json({ ok: true }));
 app.get("/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
@@ -89,11 +89,11 @@ app.get("/webhook", (req, res) => {
   return res.sendStatus(403);
 });
 
-// Rota de diagnóstico do disparo de aniversário (somente com chave)
+// Rota de diagnÃ³stico do disparo de aniversÃ¡rio (somente com chave)
 app.get("/disparo-aniversario-debug", async (req, res) => {
   const chave = req.query.chave;
   const chaveCorreta = process.env.CHAVE_DISPARO;
-  if (!chaveCorreta || chave !== chaveCorreta) return res.status(401).json({ ok:false, error:"Acesso não autorizado" });
+  if (!chaveCorreta || chave !== chaveCorreta) return res.status(401).json({ ok:false, error:"Acesso nÃ£o autorizado" });
   try {
     const diag = await diagnosticarAniversario();
     return res.json({ ok:true, tipo:"aniversario", diagnostics: diag });
@@ -102,7 +102,7 @@ app.get("/disparo-aniversario-debug", async (req, res) => {
   }
 });
 
-// ===== Helpers de diagnóstico (aniversário) =====
+// ===== Helpers de diagnÃ³stico (aniversÃ¡rio) =====
 async function resolveTemplateAnivLang(templateName) {
   try {
     const envLang = String(process.env.WHATSAPP_TEMPLATE_ANIV_LANG || '').trim();
@@ -162,14 +162,14 @@ async function diagnosticarAniversario() {
   return diagnostics;
 }
 
-// Rota POST /disparo (compatível): redireciona para GET mantendo chave/tipo
+// Rota POST /disparo (compatÃ­vel): redireciona para GET mantendo chave/tipo
 app.post("/disparo", express.json(), (req, res) => {
   try {
     const authHeader = req.headers.authorization || "";
     const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
     const chave = (req.body && req.body.chave) || req.query.chave || bearer || "";
     const tipo = (req.body && req.body.tipo) || req.query.tipo || "";
-    if (!chave || !tipo) return res.status(400).send("Parâmetros obrigatórios ausentes.");
+    if (!chave || !tipo) return res.status(400).send("ParÃ¢metros obrigatÃ³rios ausentes.");
     const url = `/disparo?chave=${encodeURIComponent(chave)}&tipo=${encodeURIComponent(tipo)}`;
     return res.redirect(307, url);
   } catch (e) {
@@ -211,7 +211,7 @@ try {
     console.log("[DRY_RUN] Ativado (sem envios reais).\n");
   }
 } catch (e) {
-  console.warn("[DRY_RUN] Interceptor não aplicado:", e?.message || e);
+  console.warn("[DRY_RUN] Interceptor nÃ£o aplicado:", e?.message || e);
 }
 
 // Interceptores para throttling e retry (somente endpoints de /messages da Graph)
@@ -257,20 +257,20 @@ try {
       console.log(`[CRON] Desativado (ENABLE_CRON=false) -> ${expr}`);
       return { start() {}, stop() {}, destroy() {} };
     };
-    console.log("[CRON] Todos os agendamentos estão desativados nesta instância.\n");
+    console.log("[CRON] Todos os agendamentos estÃ£o desativados nesta instÃ¢ncia.\n");
   }
 } catch (e) {
   console.warn("[CRON] Falha ao desativar scheduler:", e?.message || e);
 }
 
-// --- INÍCIO DA ADIÇÃO ---
+// --- INÃCIO DA ADIÃ‡ÃƒO ---
 function getRandomMessage(messages) {
   if (Array.isArray(messages)) {
     return messages[Math.floor(Math.random() * messages.length)];
   }
   return messages;
 }
-// --- FIM DA ADIÇÃO ---
+// --- FIM DA ADIÃ‡ÃƒO ---
 
 // logo no topo do index.js
 try {
@@ -278,7 +278,7 @@ try {
   if (creds.client_email) {
     console.log("[SA] client_email:", creds.client_email);
   } else {
-    console.warn("[SA] GOOGLE_CREDENTIALS sem client_email ou variável vazia.");
+    console.warn("[SA] GOOGLE_CREDENTIALS sem client_email ou variÃ¡vel vazia.");
   }
 } catch (e) {
   console.error("[SA] Erro ao ler GOOGLE_CREDENTIALS:", e.message);
@@ -287,7 +287,7 @@ try {
 function getSheetsClientLocal() {
   const creds = JSON.parse(process.env.GOOGLE_CREDENTIALS || "{}");
   if (!creds.client_email || !creds.private_key) {
-    throw new Error("GOOGLE_CREDENTIALS inválido no fallback (client_email/private_key ausentes).");
+    throw new Error("GOOGLE_CREDENTIALS invÃ¡lido no fallback (client_email/private_key ausentes).");
   }
   const jwt = new google.auth.JWT(
     creds.client_email,
@@ -299,8 +299,8 @@ function getSheetsClientLocal() {
 }
 
 // ================================================================
-// NOVO GERADOR DE CALENDÁRIO (SVG -> PNG via sharp)
-// Mantém tudo aqui para facilitar rollback do fluxo de eventos
+// NOVO GERADOR DE CALENDÃRIO (SVG -> PNG via sharp)
+// MantÃ©m tudo aqui para facilitar rollback do fluxo de eventos
 // ================================================================
 
 const CAL_PAGE_W = 960;
@@ -317,8 +317,8 @@ const CAL_CELL_W = CAL_GRID_W / CAL_COLS;
 const CAL_CELL_H = CAL_GRID_H / (CAL_ROWS - 1);
 const CAL_MAX_EVENT_LINES = 4;
 const CAL_TZ = "America/Sao_Paulo";
-const CAL_DOW = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
-const CAL_MONTHS = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+const CAL_DOW = ["Dom","Seg","Ter","Qua","Qui","Sex","SÃ¡b"];
+const CAL_MONTHS = ["Janeiro","Fevereiro","MarÃ§o","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 
 const __cal_cache = new Map(); // key: YYYY-MM -> { buf, expiresAt }
 let __logo_cache = { key: null, uri: null, expiresAt: 0 };
@@ -357,7 +357,7 @@ function parseDateFlexBRorNative(s) {
 
 async function readEventosDoMes(reference) {
   const spreadsheetId = process.env.SPREADSHEET_ID_EVENTOS || "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8";
-  const range = "comunicados!A2:G"; // B: título (idx 1), G: data (idx 6)
+  const range = "comunicados!A2:G"; // B: tÃ­tulo (idx 1), G: data (idx 6)
   const sheets = getSheetsClientLocal();
   const ini = startOfMonth(reference);
   const fim = endOfMonth(reference);
@@ -378,7 +378,7 @@ async function readEventosDoMes(reference) {
       eventosMap[day].push({ title: titulo, date: dt });
     }
   }
-  // ordenar por data/hora e título
+  // ordenar por data/hora e tÃ­tulo
   Object.keys(eventosMap).forEach(k => eventosMap[k].sort((a, b) => {
     const ta = a.date?.getTime?.() || 0;
     const tb = b.date?.getTime?.() || 0;
@@ -397,7 +397,7 @@ function limitarEventos(lines, max) {
   return shown;
 }
 
-// Aproximação de wrap por largura da célula
+// AproximaÃ§Ã£o de wrap por largura da cÃ©lula
 function wrapByWidth(text, maxChars) {
   if (!text) return [""];
   if (text.length <= maxChars) return [text];
@@ -428,7 +428,7 @@ function wrapByWidth(text, maxChars) {
 }
 
 function computeMaxChars(cellWidthPx, fontPx) {
-  const approxCharW = fontPx * 0.58; // Arial aproximação
+  const approxCharW = fontPx * 0.58; // Arial aproximaÃ§Ã£o
   const usable = Math.max(0, cellWidthPx - 12);
   return Math.max(8, Math.floor(usable / approxCharW));
 }
@@ -493,13 +493,13 @@ async function getLogoDataUri() {
     return uri;
   } catch (e) {
     console.warn('[EventosLogo] Falha ao carregar logo:', e?.message || e);
-    // Em erro genérico, aplica backoff de 2h para evitar repetir
+    // Em erro genÃ©rico, aplica backoff de 2h para evitar repetir
     __logo_cache = { key: cacheKey, uri: null, expiresAt: now + 2*60*60*1000 };
     return null;
   }
 }
 
-// Carrega fonte como data URI (woff2). Suporta *_WOFF2 (base64 sem cabeçalho) ou *_URL
+// Carrega fonte como data URI (woff2). Suporta *_WOFF2 (base64 sem cabeÃ§alho) ou *_URL
 async function getFontDataUri(kind) {
   const now = Date.now();
   const cache = __font_cache.get(kind);
@@ -530,7 +530,7 @@ async function getFontDataUri(kind) {
 
 function buildSvgCalendario(reference, eventosMap, logoDataUri) {
   const monthName = CAL_MONTHS[reference.getMonth()];
-  const title = `Agenda de Eventos – ${monthName} ${reference.getFullYear()}`;
+  const title = `Agenda de Eventos â€“ ${monthName} ${reference.getFullYear()}`;
   const first = new Date(reference.getFullYear(), reference.getMonth(), 1);
   const firstDow = first.getDay(); // 0=Dom
   const lastDay = new Date(reference.getFullYear(), reference.getMonth()+1, 0).getDate();
@@ -561,7 +561,7 @@ function buildSvgCalendario(reference, eventosMap, logoDataUri) {
     const dayX = x + CAL_CELL_W - 8;
     const dayY = y + 16;
     const eventos = eventosMap[day] || [];
-    // Formata eventos: usa somente o título (não repete a data)
+    // Formata eventos: usa somente o tÃ­tulo (nÃ£o repete a data)
     const maxChars = computeMaxChars(CAL_CELL_W, 11);
     const gathered = [];
     let usedLines = 0;
@@ -572,13 +572,13 @@ function buildSvgCalendario(reference, eventosMap, logoDataUri) {
       if (wrapped.length === 0) continue;
       for (let j=0; j<wrapped.length; j++) {
         if (usedLines >= CAL_MAX_EVENT_LINES) break;
-        const prefix = j === 0 ? '• ' : '  ';
+        const prefix = j === 0 ? 'â€¢ ' : '  ';
         gathered.push(prefix + wrapped[j]);
         usedLines++;
       }
       if (usedLines >= CAL_MAX_EVENT_LINES) break;
     }
-    // Se sobrar eventos não exibidos, adiciona "+N mais"
+    // Se sobrar eventos nÃ£o exibidos, adiciona "+N mais"
     const totalLinesIfSingle = eventos.length; // aproximado por evento
     if (eventos.length > 0) {
       const remaining = eventos.length - Math.max(0, gathered.length > 0 ? Math.ceil(gathered.length/2) : 0);
@@ -616,13 +616,13 @@ function escapeXml(s="") {
   return s.replace(/[&<>]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[ch]));
 }
 
-// Remove fragmentos de data no título (ex.: " - 05/10" ou " – 05 de Outubro")
+// Remove fragmentos de data no tÃ­tulo (ex.: " - 05/10" ou " â€“ 05 de Outubro")
 function stripDateFromTitle(t) {
   let s = t;
-  // padrões comuns com separadores - ou –
-  s = s.replace(/\s*[\-–—]\s*\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\s*$/u, '');
-  s = s.replace(/\s*[\-–—]\s*\d{1,2}\s+de\s+[A-Za-zÀ-ÿ]+\s*$/u, '');
-  // espaços duplos
+  // padrÃµes comuns com separadores - ou â€“
+  s = s.replace(/\s*[\-â€“â€”]\s*\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\s*$/u, '');
+  s = s.replace(/\s*[\-â€“â€”]\s*\d{1,2}\s+de\s+[A-Za-zÃ€-Ã¿]+\s*$/u, '');
+  // espaÃ§os duplos
   s = s.replace(/\s{2,}/g, ' ').trim();
   return s;
 }
@@ -638,7 +638,7 @@ async function getOrRenderCalendarPng(monthStr) {
 
   if (!hasAny) {
     // Gera uma imagem simples "Sem eventos" para manter compatibilidade visual
-    const svg = `<?xml version="1.0"?><svg width="${CAL_PAGE_W}" height="${CAL_PAGE_H}" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="#fff"/><text x="50%" y="50%" font-family="Arial, sans-serif" font-size="24" text-anchor="middle" fill="#333">Sem eventos neste mês</text></svg>`;
+    const svg = `<?xml version="1.0"?><svg width="${CAL_PAGE_W}" height="${CAL_PAGE_H}" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="#fff"/><text x="50%" y="50%" font-family="Arial, sans-serif" font-size="24" text-anchor="middle" fill="#333">Sem eventos neste mÃªs</text></svg>`;
     const buf = await sharp(Buffer.from(svg)).png().toBuffer();
     __cal_cache.set(monthStr, { buf, expiresAt: now + 60*60*1000 }); // 1h
     return buf;
@@ -669,7 +669,7 @@ app.get('/eventos/calendario.png', async (req, res) => {
   }
 });
 
-// Rota JSON compatível com contrato antigo
+// Rota JSON compatÃ­vel com contrato antigo
 app.get('/eventos/status.json', async (req, res) => {
   try {
     const d = new Date();
@@ -690,7 +690,7 @@ app.get('/eventos/status.json', async (req, res) => {
 });
 
 // ================================================================
-// NOVA SAÍDA: PÔSTER 1080x1080 (lista de eventos)
+// NOVA SAÃDA: PÃ”STER 1080x1080 (lista de eventos)
 // ================================================================
 function formatMonthDay(dt) {
   // dd/mm para combinar com o exemplo fornecido
@@ -733,8 +733,8 @@ function buildSvgPoster(reference, eventosMap, logoDataUri, options = {}) {
     card: { radius: 48, textSize: 60, leftPad: 28, ratio: 0.8, gap: 20 }
   };
 
-  const titleText = 'EVENTOS DO MÊS';
-  const startY = SPEC.title.top + SPEC.title.size + 40; // após o título
+  const titleText = 'EVENTOS DO MÃŠS';
+  const startY = SPEC.title.top + SPEC.title.size + 40; // apÃ³s o tÃ­tulo
   const circleR = SPEC.pill.diameter / 2;
   const innerLeft = MARGIN;
   const innerRight = W - MARGIN;
@@ -756,7 +756,7 @@ function buildSvgPoster(reference, eventosMap, logoDataUri, options = {}) {
   function fitTitle(t) {
     const maxChars = Math.floor((rectW - SPEC.card.leftPad - 20) / (SPEC.card.textSize * 0.52));
     if (t.length <= maxChars) return t;
-    return t.slice(0, Math.max(0, maxChars-1)) + '…';
+    return t.slice(0, Math.max(0, maxChars-1)) + 'â€¦';
   }
 
   const rows = events.map((ev, idx) => {
@@ -818,7 +818,7 @@ app.get('/eventos/poster.png', async (req, res) => {
   }
 });
 
-// Lista de links para todas as páginas de pôster (5 eventos por página)
+// Lista de links para todas as pÃ¡ginas de pÃ´ster (5 eventos por pÃ¡gina)
 app.get('/eventos/posters.json', async (req, res) => {
   try {
     const baseUrl = (process.env.PUBLIC_BASE_URL || '').trim() || `${req.protocol}://${req.get('host')}`;
@@ -851,16 +851,16 @@ function buildSvgPosterV2(reference, eventosMap, logoDataUri, options = {}) {
   const BLUE = '#044372', OFF = '#F9F7F2', BLACK = '#111111', WHITE = '#FFFFFF';
 
   const ROW_H = 96, ROW_GAP = 24, PILL_D = 84, CARD_RADIUS = 48, CARD_PAD_L = 28;
-  const CARD_RIGHT_MARGIN = 8; // aproxima o cartão da borda direita
+  const CARD_RIGHT_MARGIN = 8; // aproxima o cartÃ£o da borda direita
   const TITLE_MAX = 150, TITLE_MIN = 96, TRACK = 2; // letter-spacing px
   const CARD_TEXT = 60, CARD_TEXT_SMALL = 52;
 
   const hasLogo = Boolean(logoDataUri);
-  const titleText = 'PRÓXIMOS EVENTOS';
+  const titleText = 'PRÃ“XIMOS EVENTOS';
 
   const circleR = PILL_D/2;
   const innerLeft = M, innerRight = W - M;
-  const rectXStart = innerLeft + PILL_D + 12; // pílula + gap menor p/ sobrepor visualmente
+  const rectXStart = innerLeft + PILL_D + 12; // pÃ­lula + gap menor p/ sobrepor visualmente
   const rectUsableW = innerRight - rectXStart;
   const rectW = Math.max(120, rectUsableW - CARD_RIGHT_MARGIN);
 
@@ -869,7 +869,7 @@ function buildSvgPosterV2(reference, eventosMap, logoDataUri, options = {}) {
   let titleSize = TITLE_MAX;
   while (approxWidth(titleText, titleSize, TRACK) > titleMaxWidth && titleSize > TITLE_MIN) titleSize -= 4;
 
-  const startY = 60 + titleSize + 40; // abaixo do título
+  const startY = 60 + titleSize + 40; // abaixo do tÃ­tulo
 
   const allEvents = getAllEventsSorted(eventosMap).map(e => ({
     dateText: formatMonthDay(e.date),
@@ -880,7 +880,7 @@ function buildSvgPosterV2(reference, eventosMap, logoDataUri, options = {}) {
   const start = (page - 1) * perPage;
   const events = allEvents.slice(start, start + perPage);
 
-  // Logo principal no rodapé esquerdo, 100x100
+  // Logo principal no rodapÃ© esquerdo, 100x100
   const logoTag = logoDataUri ? `<image href="${logoDataUri}" x="${M+6}" y="${H - M - 110}" width="100" height="100" preserveAspectRatio="xMidYMid meet" />` : '';
 
   function fitCardTitle(text) {
@@ -888,7 +888,7 @@ function buildSvgPosterV2(reference, eventosMap, logoDataUri, options = {}) {
     if (text.length <= maxChars) return { text, size: CARD_TEXT };
     const maxCharsSmall = Math.floor((rectW - CARD_PAD_L - 20) / (CARD_TEXT_SMALL * 0.52));
     if (text.length <= maxCharsSmall) return { text, size: CARD_TEXT_SMALL };
-    return { text: text.slice(0, Math.max(0, maxCharsSmall-1)) + '…', size: CARD_TEXT_SMALL };
+    return { text: text.slice(0, Math.max(0, maxCharsSmall-1)) + 'â€¦', size: CARD_TEXT_SMALL };
   }
 
   const rows = events.map((ev, idx) => {
@@ -970,11 +970,11 @@ app.get('/eventos/posters2.json', async (req, res) => {
   }
 });
 
-// sender WA mínimo (usado só se você não tiver um global)
+// sender WA mÃ­nimo (usado sÃ³ se vocÃª nÃ£o tiver um global)
 async function enviarWhatsAppTemplateLocal(numero, templateName, variaveis = []) {
   const token = process.env.WHATSAPP_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  if (!token || !phoneNumberId) throw new Error("WHATSAPP_TOKEN/WHATSAPP_PHONE_NUMBER_ID não configurados.");
+  if (!token || !phoneNumberId) throw new Error("WHATSAPP_TOKEN/WHATSAPP_PHONE_NUMBER_ID nÃ£o configurados.");
 
   const url = `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`;
   const body = {
@@ -999,14 +999,14 @@ async function enviarWhatsAppTemplateLocal(numero, templateName, variaveis = [])
 
 
 
-//função de saudação
+//funÃ§Ã£o de saudaÃ§Ã£o
 
 function ehSaudacao(texto) {
-  const saudacoes = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "e aí", "eai", "opa"];
+  const saudacoes = ["oi", "olÃ¡", "ola", "bom dia", "boa tarde", "boa noite", "e aÃ­", "eai", "opa"];
   return saudacoes.includes(texto.toLowerCase());
 }
 
-// Função para montar o menu principal interativo com botões
+// FunÃ§Ã£o para montar o menu principal interativo com botÃµes
 
 // ================================================================
 // SISTEMA DE MENUS INTERATIVOS
@@ -1018,36 +1018,36 @@ function montarMenuPrincipalInterativo() {
     type: "interactive",
     interactive: {
       type: "list",
-      header: { type: "text", text: "📋 Menu Principal - EAC Porciúncula" },
+      header: { type: "text", text: "ðŸ“‹ Menu Principal - EAC PorciÃºncula" },
       body: {
-        text: "Como posso te ajudar hoje? Escolha uma das opções:\n\nToque no botão abaixo para ver as opções."
+        text: "Como posso te ajudar hoje? Escolha uma das opÃ§Ãµes:\n\nToque no botÃ£o abaixo para ver as opÃ§Ãµes."
       },
       footer: { text: "11:22" },
       action: {
-        button: "Ver opções",
+        button: "Ver opÃ§Ãµes",
         sections: [
           {
-            title: "📝 Inscrições",
+            title: "ðŸ“ InscriÃ§Ãµes",
             rows: [
-              { id: "1", title: "Formulário Encontristas", description: "Inscrição para adolescentes" },
-              { id: "2", title: "Formulário Encontreiros", description: "Inscrição para equipe" }
+              { id: "1", title: "FormulÃ¡rio Encontristas", description: "InscriÃ§Ã£o para adolescentes" },
+              { id: "2", title: "FormulÃ¡rio Encontreiros", description: "InscriÃ§Ã£o para equipe" }
             ]
           },
           {
-            title: "📱 Contatos e Redes",
+            title: "ðŸ“± Contatos e Redes",
             rows: [
               { id: "3", title: "Instagram do EAC", description: "Nosso perfil oficial" },
               { id: "4", title: "E-mail de contato", description: "Fale conosco por e-mail" },
-              { id: "5", title: "WhatsApp da Paróquia", description: "Contato direto" }
+              { id: "5", title: "WhatsApp da ParÃ³quia", description: "Contato direto" }
             ]
           },
           {
-            title: "📅 Eventos e Conteúdo",
+            title: "ðŸ“… Eventos e ConteÃºdo",
             rows: [
               { id: "6", title: "Eventos do EAC", description: "Agenda de eventos" },
-              { id: "7", title: "Playlist no Spotify", description: "Nossas músicas" },
-              { id: "9", title: "Mensagem do Dia", description: "Inspiração diária" },
-              { id: "10", title: "Versículo do Dia", description: "Palavra de Deus" }
+              { id: "7", title: "Playlist no Spotify", description: "Nossas mÃºsicas" },
+              { id: "9", title: "Mensagem do Dia", description: "InspiraÃ§Ã£o diÃ¡ria" },
+              { id: "10", title: "VersÃ­culo do Dia", description: "Palavra de Deus" }
             ]
           }
         ]
@@ -1056,25 +1056,25 @@ function montarMenuPrincipalInterativo() {
   };
 }
 
-// Função para montar o menu principal em texto (fallback)
+// FunÃ§Ã£o para montar o menu principal em texto (fallback)
 function montarMenuPrincipal() {
   return (
-    "📋 *Menu Principal - EAC Porciúncula* 📋\n\n" +
-    "1 - 1️⃣ Formulário de Inscrição para Encontristas\n" +
-    "2 - 2️⃣ Formulário de Inscrição para Encontreiros\n" +
-    "3 - 📸 Instagram do EAC\n" +
-    "4 - 📬 E-mail de contato\n" +
-    "5 - 📱 WhatsApp da Paróquia\n" +
-    "6 - 📅 Eventos do EAC\n" +
-    "7 - 🎵 Playlist no Spotify\n" +
-    //"8 - 💬 Falar com um Encontreiro\n" +
-    "9 - 💡 Mensagem do Dia\n" +
-    "10 - 📖 Versículo do Dia\n\n" +
-    "Digite o número correspondente à opção desejada. 👇"
+    "ðŸ“‹ *Menu Principal - EAC PorciÃºncula* ðŸ“‹\n\n" +
+    "1 - 1ï¸âƒ£ FormulÃ¡rio de InscriÃ§Ã£o para Encontristas\n" +
+    "2 - 2ï¸âƒ£ FormulÃ¡rio de InscriÃ§Ã£o para Encontreiros\n" +
+    "3 - ðŸ“¸ Instagram do EAC\n" +
+    "4 - ðŸ“¬ E-mail de contato\n" +
+    "5 - ðŸ“± WhatsApp da ParÃ³quia\n" +
+    "6 - ðŸ“… Eventos do EAC\n" +
+    "7 - ðŸŽµ Playlist no Spotify\n" +
+    //"8 - ðŸ’¬ Falar com um Encontreiro\n" +
+    "9 - ðŸ’¡ Mensagem do Dia\n" +
+    "10 - ðŸ“– VersÃ­culo do Dia\n\n" +
+    "Digite o nÃºmero correspondente Ã  opÃ§Ã£o desejada. ðŸ‘‡"
   );
 }
 
-// Enviar mensagem para número via WhatsApp Cloud API
+// Enviar mensagem para nÃºmero via WhatsApp Cloud API
 
 // ================================================================
 // SISTEMA DE ENVIO DE MENSAGENS (Texto e Interativo)
@@ -1095,13 +1095,13 @@ async function enviarMensagem(numero, mensagem) {
         }
       }
     );
-    console.log("✅ Mensagem enviada com sucesso para:", numero);
+    console.log("âœ… Mensagem enviada com sucesso para:", numero);
   } catch (error) {
-    console.error("❌ Erro ao enviar mensagem:", JSON.stringify(error.response?.data || error, null, 2));
+    console.error("âŒ Erro ao enviar mensagem:", JSON.stringify(error.response?.data || error, null, 2));
   }
 }
 
-// Enviar mensagem interativa para número via WhatsApp Cloud API
+// Enviar mensagem interativa para nÃºmero via WhatsApp Cloud API
 async function enviarMensagemInterativa(numero, mensagemInterativa) {
   try {
     const payload = {
@@ -1119,29 +1119,29 @@ async function enviarMensagemInterativa(numero, mensagemInterativa) {
         },
       }
     );
-    console.log("✅ Mensagem interativa enviada com sucesso para:", numero);
+    console.log("âœ… Mensagem interativa enviada com sucesso para:", numero);
   } catch (error) {
-    console.error("❌ Erro ao enviar mensagem interativa:", JSON.stringify(error.response?.data || error, null, 2));
+    console.error("âŒ Erro ao enviar mensagem interativa:", JSON.stringify(error.response?.data || error, null, 2));
   }
 }
 
-// Função para envio de template de lembrete de evento
+// FunÃ§Ã£o para envio de template de lembrete de evento
 
 // ================================================================
 // ENVIO DE TEMPLATES WHATSAPP BUSINESS
 // ================================================================
 async function enviarTemplateLembreteEvento(numero, eventoNome, dataEvento) {
   try {
-    // Validação dos parâmetros obrigatórios
+    // ValidaÃ§Ã£o dos parÃ¢metros obrigatÃ³rios
     if (!numero || !eventoNome || !dataEvento) {
-      console.error(`❌ Parâmetros inválidos. Dados recebidos: numero=${numero}, eventoNome=${eventoNome}, dataEvento=${dataEvento}`);
+      console.error(`âŒ ParÃ¢metros invÃ¡lidos. Dados recebidos: numero=${numero}, eventoNome=${eventoNome}, dataEvento=${dataEvento}`);
       return;
     }
 
     // Log antes do envio
-    console.log(`📨 Preparando envio para: ${numero}`);
-    console.log(`📅 Evento: ${eventoNome} | Data: ${dataEvento}`);
-    console.log(`Debug: Parâmetros do template - eventoNome: ${eventoNome}, dataEvento: ${dataEvento}`);
+    console.log(`ðŸ“¨ Preparando envio para: ${numero}`);
+    console.log(`ðŸ“… Evento: ${eventoNome} | Data: ${dataEvento}`);
+    console.log(`Debug: ParÃ¢metros do template - eventoNome: ${eventoNome}, dataEvento: ${dataEvento}`);
     console.log(`Debug: Objeto template completo: ${JSON.stringify({
           name: "eac_lembrete_v1", // <-- NOME DO TEMPLATE ATUALIZADO AQUI
           language: { code: TEMPLATE_LANG },
@@ -1152,7 +1152,7 @@ async function enviarTemplateLembreteEvento(numero, eventoNome, dataEvento) {
                 { type: "text", text: eventoNome },                             // Mapeia para {{evento_nome}}
                 { type: "text", text: "15/06/2025" },                           // Mapeia para {{prazo_resposta}}
                 { type: "text", text: dataEvento },                             // Mapeia para {{data_evento}}
-                { type: "text", text: "09:00 às 18:00" }                       // Mapeia para {{hora_evento}}
+                { type: "text", text: "09:00 Ã s 18:00" }                       // Mapeia para {{hora_evento}}
               ]
             }
           ]
@@ -1188,16 +1188,16 @@ async function enviarTemplateLembreteEvento(numero, eventoNome, dataEvento) {
       }
      );
 
-    console.log(`✅ Template enviado com sucesso para: ${numero}`);
+    console.log(`âœ… Template enviado com sucesso para: ${numero}`);
   } catch (error) {
-    console.error(`❌ Erro ao enviar template para o número ${numero}:`, JSON.stringify(error.response?.data || error, null, 2));
+    console.error(`âŒ Erro ao enviar template para o nÃºmero ${numero}:`, JSON.stringify(error.response?.data || error, null, 2));
   }
 }
 
 // Atualiza contatos pendentes para ativo
 
 // ================================================================
-// ATUALIZAÇÃO DE STATUS DOS CONTATOS NA PLANILHA
+// ATUALIZAÃ‡ÃƒO DE STATUS DOS CONTATOS NA PLANILHA
 // ================================================================
 async function reativarContatosPendentes() {
   try {
@@ -1226,22 +1226,22 @@ async function reativarContatosPendentes() {
     await atualizarPendentes("1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8");
     await atualizarPendentes("1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4");
 
-    console.log("🔄 Contatos com status 'Pendente' atualizados para 'Ativo'.");
+    console.log("ðŸ”„ Contatos com status 'Pendente' atualizados para 'Ativo'.");
   } catch (error) {
     console.error("Erro ao atualizar contatos:", error);
   }
 }
 
-// Verificação e resposta automática a saudações
+// VerificaÃ§Ã£o e resposta automÃ¡tica a saudaÃ§Ãµes
 function ehSaudacao(texto) {
-  const saudacoes = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "menu"];
+  const saudacoes = ["oi", "olÃ¡", "ola", "bom dia", "boa tarde", "boa noite", "menu"];
   return saudacoes.some(s => texto.includes(s));
 }
 
 // Verifica eventos da aba 'comunicados' para enviar lembrete
 
 // ================================================================
-// LÓGICA DE VERIFICAÇÃO DE EVENTOS PARA DISPAROS
+// LÃ“GICA DE VERIFICAÃ‡ÃƒO DE EVENTOS PARA DISPAROS
 // ================================================================
 async function verificarEventosParaLembrete() {
   try {
@@ -1277,7 +1277,7 @@ async function verificarEventosParaLembrete() {
       }
 
       if (!isNaN(dataEvento.getTime()) && dataEvento >= hoje && dataEvento <= seteDiasDepois) {
-        const titulo = row[1] || "(Sem título)";
+        const titulo = row[1] || "(Sem tÃ­tulo)";
         const dataFormatada = `${dataEvento.getDate().toString().padStart(2, '0')}/${(dataEvento.getMonth() + 1).toString().padStart(2, '0')}`;
         eventosDaSemana.push({
           nome: titulo,
@@ -1300,14 +1300,14 @@ async function verificarEventosParaLembrete() {
         .map(([numero, status], idx) => ({ numero, status, idx }))
         .filter(c => c.status === "Ativo");
 
-      console.log("📨 Contatos ativos:", numeros.length);
+      console.log("ðŸ“¨ Contatos ativos:", numeros.length);
       const updates = contatos.map(([numero, status]) => [status]);
 
       if (eventosDaSemana.length > 0) {
-        const saudacao = "🌞 Bom dia! Aqui é o EAC Porciúncula trazendo um resumo dos próximos eventos:\n";
-        const cabecalho = `📅 *Agenda da Semana (${hoje.toLocaleDateString()} a ${seteDiasDepois.toLocaleDateString()})*\n\n`;
+        const saudacao = "ðŸŒž Bom dia! Aqui Ã© o EAC PorciÃºncula trazendo um resumo dos prÃ³ximos eventos:\n";
+        const cabecalho = `ðŸ“… *Agenda da Semana (${hoje.toLocaleDateString()} a ${seteDiasDepois.toLocaleDateString()})*\n\n`;
         const corpo = eventosDaSemana.join("\n");
-        const rodape = "\n👉 Se tiver dúvida, fale com a gente!";
+        const rodape = "\nðŸ‘‰ Se tiver dÃºvida, fale com a gente!";
 
         const mensagemFinal = `${saudacao}${cabecalho}${corpo}${rodape}`;
 
@@ -1319,7 +1319,7 @@ async function verificarEventosParaLembrete() {
       }
 
       } else {
-        console.log("Nenhum evento na próxima semana.");
+        console.log("Nenhum evento na prÃ³xima semana.");
       }
 
       await sheets.spreadsheets.values.update({
@@ -1332,13 +1332,13 @@ async function verificarEventosParaLembrete() {
     if (updatesEncontreiros.length) {
       try {
         if (String(process.env.SHEETS_READ_ONLY||"").toLowerCase() === "true") {
-          console.log(`[Sheets] READ_ONLY ativo - ${updatesEncontreiros.length} células não serão gravadas (Encontreiros).`);
+          console.log(`[Sheets] READ_ONLY ativo - ${updatesEncontreiros.length} cÃ©lulas nÃ£o serÃ£o gravadas (Encontreiros).`);
         } else {
           await sheets.spreadsheets.values.batchUpdate({
             spreadsheetId: planilhaEncontreirosId,
             requestBody: { valueInputOption: "RAW", data: updatesEncontreiros }
           });
-          console.log(`[Sheets] Encontreiros batchUpdate: ${updatesEncontreiros.length} células.`);
+          console.log(`[Sheets] Encontreiros batchUpdate: ${updatesEncontreiros.length} cÃ©lulas.`);
         }
       } catch (e) {
         console.warn("[Sheets] Falha batchUpdate Encontreiros:", e?.response?.status || e?.message || e);
@@ -1379,14 +1379,14 @@ app.post("/webhook", async (req, res) => {
 
     const respostas = {
       "1": [
-        "📝 *Inscrição de Encontristas*\n\nSe você quer participar como *adolescente encontrista* no nosso próximo EAC, preencha este formulário com atenção:\n👉 https://docs.google.com/forms/d/e/1FAIpQLScrESiqWcBsnqMXGwiOOojIeU6ryhuWwZkL1kMr0QIeosgg5w/viewform?usp=preview",
-        "🎉 Que legal! Para se inscrever como *adolescente encontrista*, acesse:\n👉 https://docs.google.com/forms/d/e/1FAIpQLScrESiqWcBsnqMXGwiOOojIeU6ryhuWwZkL1kMr0QIeosgg5w/viewform?usp=preview"
+        "ðŸ“ *InscriÃ§Ã£o de Encontristas*\n\nSe vocÃª quer participar como *adolescente encontrista* no nosso prÃ³ximo EAC, preencha este formulÃ¡rio com atenÃ§Ã£o:\nðŸ‘‰ https://docs.google.com/forms/d/e/1FAIpQLScrESiqWcBsnqMXGwiOOojIeU6ryhuWwZkL1kMr0QIeosgg5w/viewform?usp=preview",
+        "ðŸŽ‰ Que legal! Para se inscrever como *adolescente encontrista*, acesse:\nðŸ‘‰ https://docs.google.com/forms/d/e/1FAIpQLScrESiqWcBsnqMXGwiOOojIeU6ryhuWwZkL1kMr0QIeosgg5w/viewform?usp=preview"
       ],
-      "2": ["📝 *Inscrição de Encontreiros*\n\nVocê deseja servir nessa missão linda como *encontreiro*? Preencha aqui:\n👉 https://forms.gle/VzqYTs9yvnACiCew6"],
-      "3": ["📸 *Nosso Instagram Oficial*\n\n👉 https://www.instagram.com/eacporciuncula/"],
-      "4": ["📬 *Fale conosco por e-mail*\n\n✉️ eacporciunculadesantana@gmail.com"],
-      "5": ["📱 *WhatsApp da Paróquia*\n\n👉 https://wa.me/5521981140278"],
-      "7": ["🎵 *Playlist no Spotify*\n\n👉 https://open.spotify.com/playlist/1TC8C71sbCZM43ghR1giWH?si=zyXIhEfvSWSKG21GTIoazA&pi=FxazNzY4TJWns"]
+      "2": ["ðŸ“ *InscriÃ§Ã£o de Encontreiros*\n\nVocÃª deseja servir nessa missÃ£o linda como *encontreiro*? Preencha aqui:\nðŸ‘‰ https://forms.gle/VzqYTs9yvnACiCew6"],
+      "3": ["ðŸ“¸ *Nosso Instagram Oficial*\n\nðŸ‘‰ https://www.instagram.com/eacporciuncula/"],
+      "4": ["ðŸ“¬ *Fale conosco por e-mail*\n\nâœ‰ï¸ eacporciunculadesantana@gmail.com"],
+      "5": ["ðŸ“± *WhatsApp da ParÃ³quia*\n\nðŸ‘‰ https://wa.me/5521981140278"],
+      "7": ["ðŸŽµ *Playlist no Spotify*\n\nðŸ‘‰ https://open.spotify.com/playlist/1TC8C71sbCZM43ghR1giWH?si=zyXIhEfvSWSKG21GTIoazA&pi=FxazNzY4TJWns"]
     };
 
     if (respostas[textoRecebido]) {
@@ -1395,39 +1395,67 @@ app.post("/webhook", async (req, res) => {
       return res.sendStatus(200);
     }
 
-    // ===== NOVO FLUXO (SVG+sharp) para opção "6 - Eventos" =====
-    // Mantém bloco legado abaixo para rollback, porém este if consome e retorna antes
+    // Fluxo PRIORITÁRIO: enviar pôster (poster2) para opção "6"
+    if (textoRecebido === "6") {
+      try {
+        const baseUrl = (process.env.PUBLIC_BASE_URL || "").trim() || `${req.protocol}://${req.get('host')}`;
+        const dNow = new Date();
+        const monthStr = `${dNow.getFullYear()}-${String(dNow.getMonth()+1).padStart(2,'0')}`;
+        const postersUrl = `${baseUrl}/eventos/posters2.json?month=${monthStr}`;
+        const { data } = await axios.get(postersUrl, { timeout: 10000 });
+        const links = Array.isArray(data?.links) ? data.links : [];
+        if (!links.length) {
+          await enviarMensagem(numero, "⚠️ Ainda não há eventos cadastrados para este mês.");
+          return res.sendStatus(200);
+        }
+        await enviarMensagem(numero, "📅 Próximos Eventos");
+        for (const link of links) {
+          await axios.post(
+            graphUrl(`${phone_number_id}/messages`),
+            { messaging_product: "whatsapp", to: numero, type: "image", image: { link } },
+            { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } }
+          );
+        }
+      } catch (e) {
+        console.error("[Eventos/6] poster2 erro:", e?.response?.data || e?.message || e);
+        await enviarMensagem(numero, "❌ Não conseguimos carregar os eventos agora. Tente mais tarde.");
+      }
+      return res.sendStatus(200);
+    }
+
+    // ===== NOVO FLUXO (SVG+sharp) para opÃ§Ã£o "6 - Eventos" =====
+    // MantÃ©m bloco legado abaixo para rollback, porÃ©m este if consome e retorna antes
     if (textoRecebido === "6") {
       const saudacao = "Agenda de Eventos do EAC - Mes Atual";
       try {
         const baseUrl = (process.env.PUBLIC_BASE_URL || '').trim() || `${req.protocol}://${req.get('host')}`;
         const dNow = new Date();
         const monthStr = `${dNow.getFullYear()}-${String(dNow.getMonth()+1).padStart(2,'0')}`;
-        const link = `${baseUrl}/eventos/calendario.png?month=${monthStr}`;
-
-        // Checa status para evitar enviar imagem vazia
+        const postersUrl =  `${baseUrl}/eventos/posters2.json?month=${monthStr}`; 
+        const { data: posters } = await axios.get(postersUrl, { timeout: 10000 });
+        const links = Array.isArray(posters?.links) ? posters.links : [];
         try {
-          const st = await axios.get(`${baseUrl}/eventos/status.json?month=${monthStr}`, { timeout: 8000 });
-          if (st?.data?.status === 'SEM_EVENTOS') {
-            await enviarMensagem(numero, "�s���? Ainda nǜo hǭ eventos cadastrados para este mǦs.");
-            return res.sendStatus(200);
-          }
-        } catch (_) { /* segue */ }
+        if ( !links.length) { 
+          await enviarMensagem(numero, " Ainda não há eventos cadastrados para este mês.\);
+ return res.sendStatus(200);
+ }
 
-        await enviarMensagem(numero, saudacao);
-        await axios.post(
-          graphUrl(`${phone_number_id}/messages`),
-          {
-            messaging_product: "whatsapp",
-            to: numero,
+ await enviarMensagem(numero, \📅 Próximos Eventos\);
+ for (const link of links) {
+ await axios.post(
+ graphUrl(`${phone_number_id}/messages`),
+ { messaging_product: \whatsapp\, to: numero, type: \image\, image: { link } },
+ { headers: { Authorization: `Bearer ${token}`, Content-Type: application/json } }
+ );
+ }
             type: "image",
             image: { link },
           },
           { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } }
         );
       } catch (erro) {
-        console.error("[Eventos/6] Erro ao gerar/enviar calendário:", erro?.response?.data || erro?.message || erro);
-        await enviarMensagem(numero, "�?O Nǜo conseguimos carregar a agenda agora. Tente novamente mais tarde.");
+        console.error("[Eventos/6] Erro ao gerar/enviar calendÃ¡rio:", erro?.response?.data || erro?.message || erro);
+        await enviarMensagem(numero, "ï¿½?O NÇœo conseguimos carregar a agenda agora. Tente novamente mais tarde.");
       }
 
       return res.sendStatus(200);
@@ -1435,13 +1463,13 @@ app.post("/webhook", async (req, res) => {
     
     // [LEGADO - Apps Script] Bloco abaixo mantido para rollback; fluxo novo retorna antes
     if (textoRecebido === "6") {
-      const saudacao = "📅 *Agenda de Eventos do EAC - Mês Atual*";
+      const saudacao = "ðŸ“… *Agenda de Eventos do EAC - MÃªs Atual*";
       try {
         const resposta = await axios.get(process.env.URL_APP_SCRIPT_EVENTOS);
         const { status, links } = resposta.data;
 
         if (status === "SEM_EVENTOS") {
-          await enviarMensagem(numero, "⚠️ Ainda não há eventos cadastrados para este mês.");
+          await enviarMensagem(numero, "âš ï¸ Ainda nÃ£o hÃ¡ eventos cadastrados para este mÃªs.");
         } else if (links) {
           const imagens = Array.isArray(links) ? links : [links];
           await enviarMensagem(numero, saudacao);
@@ -1463,26 +1491,26 @@ app.post("/webhook", async (req, res) => {
             );
           }
         } else {
-          await enviarMensagem(numero, "⚠️ Ocorreu um erro ao buscar os eventos.");
+          await enviarMensagem(numero, "âš ï¸ Ocorreu um erro ao buscar os eventos.");
         }
       } catch (erro) {
-        console.error("Erro ao buscar eventos do mês:", erro);
-        await enviarMensagem(numero, "❌ Não conseguimos carregar a agenda agora. Tente novamente mais tarde.");
+        console.error("Erro ao buscar eventos do mÃªs:", erro);
+        await enviarMensagem(numero, "âŒ NÃ£o conseguimos carregar a agenda agora. Tente novamente mais tarde.");
       }
 
       return res.sendStatus(200);
     }
 
     const fallback = [
-      "🤖 Opa! Não entendi bem sua mensagem...",
-      "🔎 Posso te ajudar com:\n• Inscrições\n• Eventos\n• Contato com a coordenação"
+      "ðŸ¤– Opa! NÃ£o entendi bem sua mensagem...",
+      "ðŸ”Ž Posso te ajudar com:\nâ€¢ InscriÃ§Ãµes\nâ€¢ Eventos\nâ€¢ Contato com a coordenaÃ§Ã£o"
     ];
     if (TELEFONE_CONTATO_HUMANO) {
-      fallback.push(`📌 Para falar com alguém agora: wa.me/${TELEFONE_CONTATO_HUMANO}`);
+      fallback.push(`ðŸ“Œ Para falar com alguÃ©m agora: wa.me/${TELEFONE_CONTATO_HUMANO}`);
     } else {
-      fallback.push("📌 Envie um e-mail para eacporciunculadesantana@gmail.com com o assunto 'Quero falar com alguém'");
+      fallback.push("ðŸ“Œ Envie um e-mail para eacporciunculadesantana@gmail.com com o assunto 'Quero falar com alguÃ©m'");
     }
-    fallback.push("Enquanto isso, veja o menu novamente 👇");
+    fallback.push("Enquanto isso, veja o menu novamente ðŸ‘‡");
 
     await enviarMensagem(numero, fallback.join("\n\n"));
     const menu = montarMenuPrincipalInterativo();
@@ -1492,10 +1520,10 @@ app.post("/webhook", async (req, res) => {
   res.sendStatus(404);
 });
 
-// Função para gerar mensagens com OpenAI
+// FunÃ§Ã£o para gerar mensagens com OpenAI
 
 // ================================================================
-// INTEGRAÇÃO COM OPENAI - GERAÇÃO DE CONTEÚDO
+// INTEGRAÃ‡ÃƒO COM OPENAI - GERAÃ‡ÃƒO DE CONTEÃšDO
 // ================================================================
 async function gerarMensagemOpenAI(prompt) {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -1518,7 +1546,7 @@ async function gerarMensagemOpenAI(prompt) {
   return resposta.data.choices[0].message.content.trim();
 }
 
-// Função para disparar eventos da semana SEM usar template (texto normal)
+// FunÃ§Ã£o para disparar eventos da semana SEM usar template (texto normal)
 
 // ================================================================
 // DISPARO DE EVENTOS SEM TEMPLATE
@@ -1533,8 +1561,8 @@ async function dispararEventosSemTemplate() {
     const client = await auth.getClient();
     const sheets = google.sheets({ version: "v4", auth: client });
 
-    // 1. Busca os eventos (sem alteração aqui)
-    const spreadsheetIdEventos = process.env.SPREADSHEET_ID_EVENTOS; // Assumindo que este é o ID da planilha de comunicados
+    // 1. Busca os eventos (sem alteraÃ§Ã£o aqui)
+    const spreadsheetIdEventos = process.env.SPREADSHEET_ID_EVENTOS; // Assumindo que este Ã© o ID da planilha de comunicados
     const rangeEventos = "comunicados!A2:G";
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: spreadsheetIdEventos,
@@ -1550,11 +1578,11 @@ async function dispararEventosSemTemplate() {
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
     const seteDiasDepois = new Date(hoje);
-    seteDiasDepois.setDate(hoje.getDate() + 7); // Ou 30, se você já alterou
+    seteDiasDepois.setDate(hoje.getDate() + 7); // Ou 30, se vocÃª jÃ¡ alterou
 
     const eventosDaSemana = rows
       .map((row, index) => {
-        const titulo = row[1] || "(Sem título)";
+        const titulo = row[1] || "(Sem tÃ­tulo)";
         const dataTexto = row[6];
         if (!dataTexto || dataTexto.trim() === '') return null;
 
@@ -1567,33 +1595,33 @@ async function dispararEventosSemTemplate() {
         }
 
         if (!isNaN(dataEvento.getTime()) && dataEvento >= hoje && dataEvento <= seteDiasDepois) {
-          return `📅 *${titulo}* - ${dataTexto}`;
+          return `ðŸ“… *${titulo}* - ${dataTexto}`;
         }
         return null;
       })
       .filter(e => e);
 
     if (eventosDaSemana.length === 0) {
-      console.log("Nenhum evento nos próximos 7 dias.");
+      console.log("Nenhum evento nos prÃ³ximos 7 dias.");
       return;
     }
 
-    const mensagemFinal = `📢 *Próximos Eventos do EAC:*\n\n${eventosDaSemana.join("\n")}\n\n🟠 Se tiver dúvidas, fale com a gente!`;
+    const mensagemFinal = `ðŸ“¢ *PrÃ³ximos Eventos do EAC:*\n\n${eventosDaSemana.join("\n")}\n\nðŸŸ  Se tiver dÃºvidas, fale com a gente!`;
 
-    // 2. Lógica de envio para as planilhas de contatos
-    // Usaremos um Set para garantir que cada número receba a mensagem apenas uma vez
+    // 2. LÃ³gica de envio para as planilhas de contatos
+    // Usaremos um Set para garantir que cada nÃºmero receba a mensagem apenas uma vez
     const numerosJaEnviados = new Set();
 
     // Planilha de Encontreiros (permanece a mesma)
     const planilhaEncontreirosId = "1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4";
-    console.log(`📂 Acessando planilha de Encontreiros: ${planilhaEncontreirosId}`);
-    const rangeFilaEncontreiros = "Fila_Envio!F2:H"; // Colunas F (número) e H (status)
+    console.log(`ðŸ“‚ Acessando planilha de Encontreiros: ${planilhaEncontreirosId}`);
+    const rangeFilaEncontreiros = "Fila_Envio!F2:H"; // Colunas F (nÃºmero) e H (status)
     const filaEncontreirosResponse = await sheets.spreadsheets.values.get({
       spreadsheetId: planilhaEncontreirosId,
       range: rangeFilaEncontreiros,
     });
     const contatosEncontreiros = filaEncontreirosResponse.data.values || [];
-    console.log(`🔍 Verificando ${contatosEncontreiros.length} registros na planilha de Encontreiros...`);
+    console.log(`ðŸ” Verificando ${contatosEncontreiros.length} registros na planilha de Encontreiros...`);
 
     for (let i = 0; i < contatosEncontreiros.length; i++) {
       const numero = contatosEncontreiros[i][0];
@@ -1601,16 +1629,16 @@ async function dispararEventosSemTemplate() {
 
       if (!numero || statusEnvio === "Enviado" || numerosJaEnviados.has(numero)) {
         if (numerosJaEnviados.has(numero)) {
-          console.log(`⏭️ Pulando ${numero} (Encontreiros): já processado nesta execução.`);
+          console.log(`â­ï¸ Pulando ${numero} (Encontreiros): jÃ¡ processado nesta execuÃ§Ã£o.`);
         } else {
-          console.log(`⏭️ Pulando linha ${i + 2} (Encontreiros): já enviado ou sem número.`);
+          console.log(`â­ï¸ Pulando linha ${i + 2} (Encontreiros): jÃ¡ enviado ou sem nÃºmero.`);
         }
         continue;
       }
 
       try {
         await enviarMensagem(numero, mensagemFinal);
-        console.log(`✅ Evento enviado para ${numero} (Encontreiros)`);
+        console.log(`âœ… Evento enviado para ${numero} (Encontreiros)`);
         numerosJaEnviados.add(numero);
 
         const updateRange = `fila_envio!H${i + 2}`;
@@ -1621,7 +1649,7 @@ async function dispararEventosSemTemplate() {
           resource: { values: [["Enviado"]] },
         });
       } catch (erroEnvio) {
-        console.error(`❌ Erro ao enviar evento para ${numero} (Encontreiros):`, erroEnvio.message);
+        console.error(`âŒ Erro ao enviar evento para ${numero} (Encontreiros):`, erroEnvio.message);
         const updateRange = `fila_envio!H${i + 2}`;
         await sheets.spreadsheets.values.update({
           spreadsheetId: planilhaEncontreirosId,
@@ -1635,17 +1663,17 @@ async function dispararEventosSemTemplate() {
     // NOVA Planilha de Cadastro Oficial (substitui a de Encontristas)
     const planilhaCadastroOficialId = "1I988yRvGYfjhoqmFvdQbjO9qWzTB4T6yv0dDBxQ-oEg";
     const abaCadastroOficial = "Cadastro_Oficial";
-    // Coluna G para número (índice 0 do range G2:U)
-    // Coluna U para status de envio (índice 14 do range G2:U)
+    // Coluna G para nÃºmero (Ã­ndice 0 do range G2:U)
+    // Coluna U para status de envio (Ã­ndice 14 do range G2:U)
     const rangeCadastroOficial = `${abaCadastroOficial}!G2:U`;
 
-    console.log(`📂 Acessando planilha de Cadastro Oficial: ${planilhaCadastroOficialId}`);
+    console.log(`ðŸ“‚ Acessando planilha de Cadastro Oficial: ${planilhaCadastroOficialId}`);
     const cadastroOficialResponse = await sheets.spreadsheets.values.get({
       spreadsheetId: planilhaCadastroOficialId,
       range: rangeCadastroOficial,
     });
     const contatosCadastroOficial = cadastroOficialResponse.data.values || [];
-    console.log(`🔍 Verificando ${contatosCadastroOficial.length} registros na planilha de Cadastro Oficial...`);
+    console.log(`ðŸ” Verificando ${contatosCadastroOficial.length} registros na planilha de Cadastro Oficial...`);
 
     for (let i = 0; i < contatosCadastroOficial.length; i++) {
       const numero = contatosCadastroOficial[i][0]; // Coluna G
@@ -1653,16 +1681,16 @@ async function dispararEventosSemTemplate() {
 
       if (!numero || statusEnvio === "Enviado" || numerosJaEnviados.has(numero)) {
         if (numerosJaEnviados.has(numero)) {
-          console.log(`⏭️ Pulando ${numero} (Cadastro Oficial): já processado nesta execução.`);
+          console.log(`â­ï¸ Pulando ${numero} (Cadastro Oficial): jÃ¡ processado nesta execuÃ§Ã£o.`);
         } else {
-          console.log(`⏭️ Pulando linha ${i + 2} (Cadastro Oficial): já enviado ou sem número.`);
+          console.log(`â­ï¸ Pulando linha ${i + 2} (Cadastro Oficial): jÃ¡ enviado ou sem nÃºmero.`);
         }
         continue;
       }
 
       try {
         await enviarMensagem(numero, mensagemFinal);
-        console.log(`✅ Evento enviado para ${numero} (Cadastro Oficial)`);
+        console.log(`âœ… Evento enviado para ${numero} (Cadastro Oficial)`);
         numerosJaEnviados.add(numero);
 
         // ATUALIZA O STATUS NA COLUNA U DA PLANILHA DE CADASTRO OFICIAL
@@ -1674,7 +1702,7 @@ async function dispararEventosSemTemplate() {
           resource: { values: [["Enviado"]] },
         });
       } catch (erroEnvio) {
-        console.error(`❌ Erro ao enviar evento para ${numero} (Cadastro Oficial):`, erroEnvio.message);
+        console.error(`âŒ Erro ao enviar evento para ${numero} (Cadastro Oficial):`, erroEnvio.message);
         const updateRange = `${abaCadastroOficial}!U${i + 2}`;
         await sheets.spreadsheets.values.update({
           spreadsheetId: planilhaCadastroOficialId,
@@ -1685,13 +1713,13 @@ async function dispararEventosSemTemplate() {
       }
     }
 
-    console.log("✅ Disparo de eventos sem template concluído.");
+    console.log("âœ… Disparo de eventos sem template concluÃ­do.");
   } catch (error) {
-    console.error("❌ Erro ao disparar eventos sem template:", error);
+    console.error("âŒ Erro ao disparar eventos sem template:", error);
   }
 }
 
-// Atualização do endpoint /disparo para incluir comunicado_geral
+// AtualizaÃ§Ã£o do endpoint /disparo para incluir comunicado_geral
 
 // ================================================================
 // ENDPOINT MANUAL DE DISPAROS (via URL)
@@ -1702,75 +1730,75 @@ app.get("/disparo", async (req, res) => {
   const chaveCorreta = process.env.CHAVE_DISPARO;
 
   if (chave !== chaveCorreta) {
-    return res.status(401).send("❌ Acesso não autorizado.");
+    return res.status(401).send("âŒ Acesso nÃ£o autorizado.");
   }
 
   try {
     if (tipo === "boasvindas") {
-      console.log("🚀 Disparando boas-vindas para todos os contatos ativos...");
+      console.log("ðŸš€ Disparando boas-vindas para todos os contatos ativos...");
       await dispararBoasVindasParaAtivos();
-      return res.status(200).send("✅ Boas-vindas enviadas com sucesso.");
+      return res.status(200).send("âœ… Boas-vindas enviadas com sucesso.");
     }
 
     if (tipo === "eventos") {
-      console.log("🚀 Disparando eventos da semana (sem template)...");
+      console.log("ðŸš€ Disparando eventos da semana (sem template)...");
       await dispararEventosSemTemplate();
-      return res.status(200).send("✅ Eventos da semana enviados com sucesso.");
+      return res.status(200).send("âœ… Eventos da semana enviados com sucesso.");
     }
 
     if (tipo === "agradecimento_inscricao") {
-      console.log("🚀 Disparando agradecimento de inscrição...");
+      console.log("ðŸš€ Disparando agradecimento de inscriÃ§Ã£o...");
       await dispararAgradecimentoInscricaoParaNaoIncluidos();
-      return res.status(200).send("✅ Agradecimento enviado com sucesso.");
+      return res.status(200).send("âœ… Agradecimento enviado com sucesso.");
     }
 
     if (tipo === "comunicado_geral") {
-      console.log("🚀 Disparando comunicado geral para contatos da fila_envio...");
+      console.log("ðŸš€ Disparando comunicado geral para contatos da fila_envio...");
       await dispararComunicadoGeralFila();
-      return res.status(200).send("✅ Comunicado geral enviado com sucesso.");
+      return res.status(200).send("âœ… Comunicado geral enviado com sucesso.");
     }
 
     if (tipo === "aniversario") {
-      console.log("🚀 Disparando Felicitações de Aniversário (hoje)…");
+      console.log("ðŸš€ Disparando FelicitaÃ§Ãµes de AniversÃ¡rio (hoje)â€¦");
       const result = await enviarComunicadoAniversarioHoje({
         getSheetsClient: (typeof getSheetsClient === "function" ? getSheetsClient : getSheetsClientLocal),
-        // sendWhatsAppTemplate omitido para usar o sender interno com idioma específico
+        // sendWhatsAppTemplate omitido para usar o sender interno com idioma especÃ­fico
       });
       return res.json({ ok: true, tipo, ...result });
     }
 
   
-    console.log("📢 Tipo de disparo inválido ou não informado.");
-    res.status(400).send("❌ Tipo de disparo inválido. Use tipo=boasvindas ou tipo=eventos.");
+    console.log("ðŸ“¢ Tipo de disparo invÃ¡lido ou nÃ£o informado.");
+    res.status(400).send("âŒ Tipo de disparo invÃ¡lido. Use tipo=boasvindas ou tipo=eventos.");
   } catch (erro) {
-    console.error("❌ Erro no disparo manual:", erro);
-    res.status(500).send("❌ Erro ao processar o disparo.");
+    console.error("âŒ Erro no disparo manual:", erro);
+    res.status(500).send("âŒ Erro ao processar o disparo.");
   }
 });
 
 // CRON Jobs
 
 // ================================================================
-// AGENDAMENTO AUTOMÁTICO VIA CRON
+// AGENDAMENTO AUTOMÃTICO VIA CRON
 // ================================================================
 cron.schedule("50 08 * * *", () => {
-  console.log("🔁 Reativando contatos com status pendente...");
+  console.log("ðŸ” Reativando contatos com status pendente...");
   reativarContatosPendentes();
 });
 
 
 // ================================================================
-// AGENDAMENTO AUTOMÁTICO VIA CRON
+// AGENDAMENTO AUTOMÃTICO VIA CRON
 // ================================================================
 cron.schedule("00 09 * * *", () => {
-  console.log("⏰ Executando verificação de eventos para lembrete às 09:00...");
+  console.log("â° Executando verificaÃ§Ã£o de eventos para lembrete Ã s 09:00...");
   verificarEventosParaLembrete();
 });
 
-// Função para envio do template de boas-vindas (primeiro contato)
+// FunÃ§Ã£o para envio do template de boas-vindas (primeiro contato)
 async function enviarTemplateBoasVindas(numero) {
   try {
-    console.log(`📨 Enviando template de boas-vindas para: ${numero}`);
+    console.log(`ðŸ“¨ Enviando template de boas-vindas para: ${numero}`);
 
       await axios.post(
         graphUrl(`${phone_number_id}/messages`),
@@ -1791,13 +1819,13 @@ async function enviarTemplateBoasVindas(numero) {
       }
     );
 
-    console.log(`✅ Template de boas-vindas enviado com sucesso para: ${numero}`);
+    console.log(`âœ… Template de boas-vindas enviado com sucesso para: ${numero}`);
   } catch (error) {
-    console.error(`❌ Erro ao enviar boas-vindas para ${numero}:`, JSON.stringify(error.response?.data || error, null, 2));
+    console.error(`âŒ Erro ao enviar boas-vindas para ${numero}:`, JSON.stringify(error.response?.data || error, null, 2));
   }
 }
 
-// Função para disparar boas-vindas para todos os contatos ativos nas duas planilhas
+// FunÃ§Ã£o para disparar boas-vindas para todos os contatos ativos nas duas planilhas
 async function dispararBoasVindasParaAtivos() {
   try {
     const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
@@ -1831,17 +1859,17 @@ async function dispararBoasVindasParaAtivos() {
       });
     }
 
-    console.log(`📨 Total de contatos únicos para disparo: ${numerosUnicos.size}`);
+    console.log(`ðŸ“¨ Total de contatos Ãºnicos para disparo: ${numerosUnicos.size}`);
 
     for (const numero of numerosUnicos) {
-      console.log(`📨 Enviando template de boas-vindas para: ${numero}`);
+      console.log(`ðŸ“¨ Enviando template de boas-vindas para: ${numero}`);
       await enviarTemplateBoasVindas(numero);
     }
 
-    console.log("✅ Disparo de boas-vindas concluído.");
+    console.log("âœ… Disparo de boas-vindas concluÃ­do.");
 
   } catch (error) {
-    console.error("❌ Erro ao disparar boas-vindas para contatos ativos:", error);
+    console.error("âŒ Erro ao disparar boas-vindas para contatos ativos:", error);
   }
 }
 
@@ -1850,7 +1878,7 @@ app.get("/dispararConfirmacaoParticipacao", async (req, res) => {
   const chaveCorreta = process.env.CHAVE_DISPARO;
 
   if (chave !== chaveCorreta) {
-    return res.status(401).send("❌ Acesso não autorizado.");
+    return res.status(401).send("âŒ Acesso nÃ£o autorizado.");
   }
 
   try {
@@ -1864,7 +1892,7 @@ app.get("/dispararConfirmacaoParticipacao", async (req, res) => {
 
     const spreadsheetId = "1I988yRvGYfjhoqmFvdQbjO9qWzTB4T6yv0dDBxQ-oEg";
     const aba = "Inscricoes_Prioritarias";
-    const range = `${aba}!A2:W76`;  // Linhas 2 a 73, até a coluna W
+    const range = `${aba}!A2:W76`;  // Linhas 2 a 73, atÃ© a coluna W
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
@@ -1873,19 +1901,19 @@ app.get("/dispararConfirmacaoParticipacao", async (req, res) => {
 
     const rows = response.data.values || [];
 
-    console.log(`🔎 Total de registros carregados da aba ${aba}: ${rows.length}`);
+    console.log(`ðŸ”Ž Total de registros carregados da aba ${aba}: ${rows.length}`);
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      const numeroWhatsApp = row[6];  // Coluna G = índice 6
-      const statusEnvio = row[22];    // Coluna W = índice 22
+      const numeroWhatsApp = row[6];  // Coluna G = Ã­ndice 6
+      const statusEnvio = row[22];    // Coluna W = Ã­ndice 22
 
       if (!numeroWhatsApp || statusEnvio === "Enviado") {
-        console.log(`⏭️ Pulando linha ${i + 2}: número vazio ou já enviado.`);
+        console.log(`â­ï¸ Pulando linha ${i + 2}: nÃºmero vazio ou jÃ¡ enviado.`);
         continue;
       }
 
-      console.log(`📨 Enviando template de confirmação para: ${numeroWhatsApp}`);
+      console.log(`ðŸ“¨ Enviando template de confirmaÃ§Ã£o para: ${numeroWhatsApp}`);
 
       try {
         await axios.post(
@@ -1916,32 +1944,32 @@ app.get("/dispararConfirmacaoParticipacao", async (req, res) => {
           resource: { values: [["Enviado"]] },
         });
 
-        console.log(`✅ Mensagem enviada e status marcado na linha ${i + 2}`);
+        console.log(`âœ… Mensagem enviada e status marcado na linha ${i + 2}`);
 
       } catch (erroEnvio) {
-        console.error(`❌ Erro ao enviar para ${numeroWhatsApp}:`, JSON.stringify(erroEnvio.response?.data || erroEnvio, null, 2));
+        console.error(`âŒ Erro ao enviar para ${numeroWhatsApp}:`, JSON.stringify(erroEnvio.response?.data || erroEnvio, null, 2));
       }
     }
 
-    res.status(200).send("✅ Disparo de confirmação de participação concluído.");
+    res.status(200).send("âœ… Disparo de confirmaÃ§Ã£o de participaÃ§Ã£o concluÃ­do.");
   } catch (error) {
-    console.error("❌ Erro geral ao processar o disparo:", error);
-    res.status(500).send("❌ Erro interno no envio.");
+    console.error("âŒ Erro geral ao processar o disparo:", error);
+    res.status(500).send("âŒ Erro interno no envio.");
   }
 });
 
 // Painel Web para disparos manuais
 const disparosDisponiveis = [
-  { nome: "Enviar Agradecimento de Inscrição", tipo: "agradecimento_inscricao", endpoint: "/disparo?chave=" + process.env.CHAVE_DISPARO + "&tipo=agradecimento_inscricao", descricao: "Dispara o template de agradecimento para os inscritos não selecionados" },
+  { nome: "Enviar Agradecimento de InscriÃ§Ã£o", tipo: "agradecimento_inscricao", endpoint: "/disparo?chave=" + process.env.CHAVE_DISPARO + "&tipo=agradecimento_inscricao", descricao: "Dispara o template de agradecimento para os inscritos nÃ£o selecionados" },
   { nome: "Enviar Boas-Vindas", tipo: "boasvindas", endpoint: "/disparo?chave=" + process.env.CHAVE_DISPARO + "&tipo=boasvindas", descricao: "Dispara o template de boas-vindas para contatos ativos" },
-  { nome: "Enviar Eventos da Semana", tipo: "eventos", endpoint: "/disparo?chave=" + process.env.CHAVE_DISPARO + "&tipo=eventos", descricao: "Envia resumo dos eventos próximos da planilha" },
-  { nome: "Enviar Confirmação de Participação", tipo: "confirmacao", endpoint: "/dispararConfirmacaoParticipacao?chave=" + process.env.CHAVE_DISPARO, descricao: "Dispara o template de confirmação para os prioritários" },
-  { nome: "Enviar Comunicado Geral", tipo: "comunicado_geral", endpoint: "/disparo?chave=" + process.env.CHAVE_DISPARO + "&tipo=comunicado_geral", descricao: "Dispara um comunicado via template para números da aba Fila_Envio" }
+  { nome: "Enviar Eventos da Semana", tipo: "eventos", endpoint: "/disparo?chave=" + process.env.CHAVE_DISPARO + "&tipo=eventos", descricao: "Envia resumo dos eventos prÃ³ximos da planilha" },
+  { nome: "Enviar ConfirmaÃ§Ã£o de ParticipaÃ§Ã£o", tipo: "confirmacao", endpoint: "/dispararConfirmacaoParticipacao?chave=" + process.env.CHAVE_DISPARO, descricao: "Dispara o template de confirmaÃ§Ã£o para os prioritÃ¡rios" },
+  { nome: "Enviar Comunicado Geral", tipo: "comunicado_geral", endpoint: "/disparo?chave=" + process.env.CHAVE_DISPARO + "&tipo=comunicado_geral", descricao: "Dispara um comunicado via template para nÃºmeros da aba Fila_Envio" }
 ];
 
 let statusLogs = [];
 
-// Painel Web para disparos manuais com tabela, formulário e logs
+// Painel Web para disparos manuais com tabela, formulÃ¡rio e logs
 app.get("/painel", (req, res) => {
   const listaDisparos = disparosDisponiveis.map(d => `
     <tr>
@@ -1970,30 +1998,30 @@ app.get("/painel", (req, res) => {
       </style>
     </head>
     <body>
-      <h2>📢 Painel de Disparos Manuais - EAC</h2>
+      <h2>ðŸ“¢ Painel de Disparos Manuais - EAC</h2>
 
-      <h3>📋 Disparos Disponíveis</h3>
+      <h3>ðŸ“‹ Disparos DisponÃ­veis</h3>
       <table>
         <tr>
           <th>Nome</th>
           <th>Tipo</th>
           <th>Endpoint</th>
-          <th>Descrição</th>
-          <th>Ação</th>
+          <th>DescriÃ§Ã£o</th>
+          <th>AÃ§Ã£o</th>
         </tr>
         ${listaDisparos}
       </table>
 
-      <h3>➕ Adicionar Novo Disparo Manual</h3>
+      <h3>âž• Adicionar Novo Disparo Manual</h3>
       <form onsubmit="adicionarDisparo(); return false;">
         <label>Nome:</label><br><input type="text" id="nome"><br>
         <label>Tipo:</label><br><input type="text" id="tipo"><br>
         <label>Endpoint:</label><br><input type="text" id="endpoint"><br>
-        <label>Descrição:</label><br><input type="text" id="descricao"><br><br>
+        <label>DescriÃ§Ã£o:</label><br><input type="text" id="descricao"><br><br>
         <button type="submit">Adicionar Disparo</button>
       </form>
 
-      <h3>📜 Últimos Logs de Disparo</h3>
+      <h3>ðŸ“œ Ãšltimos Logs de Disparo</h3>
       <ul>${logsHTML}</ul>
 
       <script>
@@ -2028,16 +2056,16 @@ app.get("/painel", (req, res) => {
 app.post("/adicionarDisparo", express.json(), (req, res) => {
   const { nome, tipo, endpoint, descricao } = req.body;
   if (!nome || !tipo || !endpoint) {
-    return res.status(400).send("❌ Preencha todos os campos obrigatórios.");
+    return res.status(400).send("âŒ Preencha todos os campos obrigatÃ³rios.");
   }
   disparosDisponiveis.push({ nome, tipo, endpoint, descricao });
-  res.send("✅ Novo disparo adicionado com sucesso!");
+  res.send("âœ… Novo disparo adicionado com sucesso!");
 });
 
-// Função para envio do template de agradecimento de inscrição
+// FunÃ§Ã£o para envio do template de agradecimento de inscriÃ§Ã£o
 async function enviarTemplateAgradecimentoInscricao(numero) {
   try {
-    console.log(`📨 Enviando template de agradecimento para: ${numero}`);
+    console.log(`ðŸ“¨ Enviando template de agradecimento para: ${numero}`);
 
     await axios.post(
       graphUrl(`${phone_number_id}/messages`),
@@ -2058,16 +2086,16 @@ async function enviarTemplateAgradecimentoInscricao(numero) {
       }
     );
 
-    console.log(`✅ Agradecimento enviado com sucesso para: ${numero}`);
-    statusLogs.push({ tipo: 'agradecimento_inscricao', resultado: '✅ Agradecimento enviado', horario: new Date() });
+    console.log(`âœ… Agradecimento enviado com sucesso para: ${numero}`);
+    statusLogs.push({ tipo: 'agradecimento_inscricao', resultado: 'âœ… Agradecimento enviado', horario: new Date() });
 
   } catch (error) {
-    console.error(`❌ Erro ao enviar agradecimento para ${numero}:`, JSON.stringify(error.response?.data || error, null, 2));
-    statusLogs.push({ tipo: 'agradecimento_inscricao', resultado: '❌ Erro no envio', horario: new Date() });
+    console.error(`âŒ Erro ao enviar agradecimento para ${numero}:`, JSON.stringify(error.response?.data || error, null, 2));
+    statusLogs.push({ tipo: 'agradecimento_inscricao', resultado: 'âŒ Erro no envio', horario: new Date() });
   }
 }
 
-// Função para envio de agradecimento apenas para não incluídos
+// FunÃ§Ã£o para envio de agradecimento apenas para nÃ£o incluÃ­dos
 async function dispararAgradecimentoInscricaoParaNaoIncluidos() {
   try {
     const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
@@ -2092,29 +2120,29 @@ async function dispararAgradecimentoInscricaoParaNaoIncluidos() {
     let totalEnviados = 0;
 
     for (const [index, linha] of contatos.entries()) {
-      const numero = linha[0];    // Coluna G (índice 0)
-      const statusU = linha[14];  // Coluna U (índice 14)
+      const numero = linha[0];    // Coluna G (Ã­ndice 0)
+      const statusU = linha[14];  // Coluna U (Ã­ndice 14)
 
       if (statusU && statusU.toLowerCase() === "nao_incluido") {
         totalEncontrados++;
-        console.log(`➡️ Linha ${index + 2} | Número: ${numero} | Status: ${statusU} | Enviando...`);
+        console.log(`âž¡ï¸ Linha ${index + 2} | NÃºmero: ${numero} | Status: ${statusU} | Enviando...`);
         try {
           await enviarTemplateAgradecimentoInscricao(numero);
           totalEnviados++;
-          console.log(`✅ Mensagem enviada com sucesso para: ${numero}`);
+          console.log(`âœ… Mensagem enviada com sucesso para: ${numero}`);
         } catch (erroEnvio) {
-          console.error(`❌ Erro ao enviar para ${numero}:`, JSON.stringify(erroEnvio.response?.data || erroEnvio, null, 2));
+          console.error(`âŒ Erro ao enviar para ${numero}:`, JSON.stringify(erroEnvio.response?.data || erroEnvio, null, 2));
         }
       }
     }
 
-    console.log(`📊 Resultado final: ${totalEncontrados} contatos encontrados com 'nao_incluido'. ${totalEnviados} mensagens enviadas.`);
+    console.log(`ðŸ“Š Resultado final: ${totalEncontrados} contatos encontrados com 'nao_incluido'. ${totalEnviados} mensagens enviadas.`);
   } catch (error) {
-    console.error("❌ Erro ao disparar agradecimento:", error);
+    console.error("âŒ Erro ao disparar agradecimento:", error);
   }
 }
 
-// Função para envio de comunicado geral a partir da aba fila_envio
+// FunÃ§Ã£o para envio de comunicado geral a partir da aba fila_envio
 async function dispararComunicadoGeralFila() {
   try {
     const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
@@ -2140,7 +2168,7 @@ async function dispararComunicadoGeralFila() {
     });
 
     const rowsCadastro = resCadastro.data.values || [];
-    console.log(`📄 [Cadastro Oficial] Registros: ${rowsCadastro.length}`);
+    console.log(`ðŸ“„ [Cadastro Oficial] Registros: ${rowsCadastro.length}`);
 
     const updatesCadastro = [];
     for (let i = 0; i < rowsCadastro.length; i++) {
@@ -2148,7 +2176,7 @@ async function dispararComunicadoGeralFila() {
       const status = rowsCadastro[i][14];
 
       if (!numero || status === "Enviado" || numerosJaEnviados.has(numero)) {
-        console.log(`⏭️ [Cadastro] Pulando linha ${i + 2}`);
+        console.log(`â­ï¸ [Cadastro] Pulando linha ${i + 2}`);
         continue;
       }
 
@@ -2172,13 +2200,13 @@ async function dispararComunicadoGeralFila() {
           }
         );
 
-        console.log(`✅ [Cadastro] Mensagem enviada para ${numero}`);
+        console.log(`âœ… [Cadastro] Mensagem enviada para ${numero}`);
         numerosJaEnviados.add(numero);
 
         const updateRange = `Cadastro Oficial!U${i + 2}`;
         updatesCadastro.push({ range: `Cadastro Oficial!U${i + 2}:U${i + 2}`, values: [["Enviado"]] });
       } catch (erroEnvio) {
-        console.error(`❌ [Cadastro] Erro ao enviar para ${numero}:`, erroEnvio.message);
+        console.error(`âŒ [Cadastro] Erro ao enviar para ${numero}:`, erroEnvio.message);
         const updateRange = `Cadastro Oficial!U${i + 2}`;
         updatesCadastro.push({ range: `Cadastro Oficial!U${i + 2}:U${i + 2}`, values: [["Erro"]] });
       }
@@ -2188,13 +2216,13 @@ async function dispararComunicadoGeralFila() {
     if (updatesCadastro.length) {
       try {
         if (String(process.env.SHEETS_READ_ONLY||"").toLowerCase() === "true") {
-          console.log(`[Sheets] READ_ONLY ativo - ${updatesCadastro.length} células não serão gravadas (Cadastro).`);
+          console.log(`[Sheets] READ_ONLY ativo - ${updatesCadastro.length} cÃ©lulas nÃ£o serÃ£o gravadas (Cadastro).`);
         } else {
           await sheets.spreadsheets.values.batchUpdate({
             spreadsheetId: planilhaCadastroId,
             requestBody: { valueInputOption: "RAW", data: updatesCadastro }
           });
-          console.log(`[Sheets] Cadastro Oficial batchUpdate: ${updatesCadastro.length} células.`);
+          console.log(`[Sheets] Cadastro Oficial batchUpdate: ${updatesCadastro.length} cÃ©lulas.`);
         }
       } catch (e) {
         console.warn("[Sheets] Falha batchUpdate Cadastro:", e?.response?.status || e?.message || e);
@@ -2211,7 +2239,7 @@ async function dispararComunicadoGeralFila() {
     });
 
     const rowsEncontreiros = resEncontreiros.data.values || [];
-    console.log(`📄 [Encontreiros] Registros: ${rowsEncontreiros.length}`);
+    console.log(`ðŸ“„ [Encontreiros] Registros: ${rowsEncontreiros.length}`);
 
     const updatesEncontreiros = [];
     for (let i = 0; i < rowsEncontreiros.length; i++) {
@@ -2219,7 +2247,7 @@ async function dispararComunicadoGeralFila() {
       const status = rowsEncontreiros[i][2];
 
       if (!numero || status === "Enviado" || numerosJaEnviados.has(numero)) {
-        console.log(`⏭️ [Encontreiros] Pulando linha ${i + 2}`);
+        console.log(`â­ï¸ [Encontreiros] Pulando linha ${i + 2}`);
         continue;
       }
 
@@ -2243,21 +2271,21 @@ async function dispararComunicadoGeralFila() {
           }
         );
 
-        console.log(`✅ [Encontreiros] Mensagem enviada para ${numero}`);
+        console.log(`âœ… [Encontreiros] Mensagem enviada para ${numero}`);
         numerosJaEnviados.add(numero);
 
         const updateRange = `Fila_Envio!H${i + 2}`;
         updatesEncontreiros.push({ range: `Fila_Envio!H${i + 2}:H${i + 2}`, values: [["Enviado"]] });
       } catch (erroEnvio) {
-        console.error(`❌ [Encontreiros] Erro ao enviar para ${numero}:`, erroEnvio.message);
+        console.error(`âŒ [Encontreiros] Erro ao enviar para ${numero}:`, erroEnvio.message);
         const updateRange = `Fila_Envio!H${i + 2}`;
         updatesEncontreiros.push({ range: `Fila_Envio!H${i + 2}:H${i + 2}`, values: [["Erro"]] });
       }
     }
 
-    console.log("📢 Disparo geral finalizado para as duas planilhas.");
+    console.log("ðŸ“¢ Disparo geral finalizado para as duas planilhas.");
   } catch (erro) {
-    console.error("❌ Erro geral:", erro);
+    console.error("âŒ Erro geral:", erro);
   }
 }
 
@@ -2265,7 +2293,7 @@ async function dispararComunicadoGeralFila() {
 
 
 // ================================================================
-// SISTEMA DE MÉTRICAS E ANALYTICS DO BOT (com integração Sheets)
+// SISTEMA DE MÃ‰TRICAS E ANALYTICS DO BOT (com integraÃ§Ã£o Sheets)
 // ================================================================
 
 let metricas = {
@@ -2279,8 +2307,8 @@ let metricas = {
   historico: []
 };
 
-// Registra acesso do usuário e salva também na planilha
-// Substitua toda a função antiga por essa abaixo
+// Registra acesso do usuÃ¡rio e salva tambÃ©m na planilha
+// Substitua toda a funÃ§Ã£o antiga por essa abaixo
 async function registrarAcessoUsuario(numero, opcaoEscolhida = null) {
   const agora = new Date();
   const hoje = agora.toISOString().split('T')[0];
@@ -2318,9 +2346,9 @@ async function registrarAcessoUsuario(numero, opcaoEscolhida = null) {
     metricas.historico = metricas.historico.slice(-1000);
   }
 
-  console.log(`📊 Acesso registrado: ${numero} - ${opcaoEscolhida || 'Menu'} - ${usuarioExistente ? 'Retorno' : 'Novo usuário'}`);
+  console.log(`ðŸ“Š Acesso registrado: ${numero} - ${opcaoEscolhida || 'Menu'} - ${usuarioExistente ? 'Retorno' : 'Novo usuÃ¡rio'}`);
 
-  // Envia também para a planilha
+  // Envia tambÃ©m para a planilha
   try {
     const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
     const auth = new google.auth.GoogleAuth({
@@ -2332,7 +2360,7 @@ async function registrarAcessoUsuario(numero, opcaoEscolhida = null) {
 
     const data = agora.toLocaleDateString("pt-BR");
     const hora = agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-    const linha = [[data, hora, numero, opcaoEscolhida || "menu", !usuarioExistente ? "Sim" : "Não"]];
+    const linha = [[data, hora, numero, opcaoEscolhida || "menu", !usuarioExistente ? "Sim" : "NÃ£o"]];
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: "160SnALnu-7g6_1EUCh9mf6vLuh1-BY1mowFceTfgnyk",
@@ -2341,9 +2369,9 @@ async function registrarAcessoUsuario(numero, opcaoEscolhida = null) {
       resource: { values: linha },
     });
 
-    console.log(`📥 Planilha atualizada com o acesso: ${numero} - ${opcaoEscolhida}`);
+    console.log(`ðŸ“¥ Planilha atualizada com o acesso: ${numero} - ${opcaoEscolhida}`);
   } catch (erro) {
-    console.error("❌ Erro ao salvar acesso na planilha:", erro.message || erro);
+    console.error("âŒ Erro ao salvar acesso na planilha:", erro.message || erro);
   }
 }
 
@@ -2351,7 +2379,7 @@ async function registrarAcessoUsuario(numero, opcaoEscolhida = null) {
 // ROTA HTML PARA REDIRECIONAMENTO DE E-MAIL (mailto:)
 // ================================================================
 app.get("/email-cantina", (req, res) => {
-  const mailtoLink = `mailto:eacporciuncula@gmail.com?subject=Quero%20ajudar%20na%20cantina&body=Olá,%20gostaria%20de%20colaborar%20no%20evento%20do%20dia%2027!`;
+  const mailtoLink = `mailto:eacporciuncula@gmail.com?subject=Quero%20ajudar%20na%20cantina&body=OlÃ¡,%20gostaria%20de%20colaborar%20no%20evento%20do%20dia%2027!`;
 
   res.send(`
     <!DOCTYPE html>
@@ -2362,18 +2390,18 @@ app.get("/email-cantina", (req, res) => {
       <title>Redirecionando para E-mail</title>
     </head>
     <body>
-      <p>Você está sendo redirecionado para seu aplicativo de e-mail...</p>
-      <p>Se não funcionar automaticamente, <a href="${mailtoLink}">clique aqui para enviar o e-mail</a>.</p>
+      <p>VocÃª estÃ¡ sendo redirecionado para seu aplicativo de e-mail...</p>
+      <p>Se nÃ£o funcionar automaticamente, <a href="${mailtoLink}">clique aqui para enviar o e-mail</a>.</p>
     </body>
     </html>
   `);
 });
 
-///nova função para disparo de mensagem de aniversario.
+///nova funÃ§Ã£o para disparo de mensagem de aniversario.
 async function enviarComunicadoAniversarioHoje(opts = {}) {
   // ===== CONFIG =====
   const SPREADSHEET_ID = "13QUYrH1iRV1TwyVQhtCHjXy77XxB9Eu7R_wsCZIJDwk";
-  const SHEET_NAME = "Cadastro Oficial";        // com espaço
+  const SHEET_NAME = "Cadastro Oficial";        // com espaÃ§o
   const RANGE_LER = `${SHEET_NAME}!A2:V`;       // C=nascimento, G=telefone, V=status
   const IDX = { NASC: 2, TEL: 6, ST_ANIV: 21 }; // A=0 ... V=21
   const COL_STATUS = "V";
@@ -2389,7 +2417,7 @@ async function enviarComunicadoAniversarioHoje(opts = {}) {
     const jwt = new g.auth.JWT(creds.client_email, null, creds.private_key, ["https://www.googleapis.com/auth/spreadsheets"]);
     return g.sheets({ version: "v4", auth: jwt });
   }));
-  // Auto-detecta idioma do template de aniversário quando não definido por env
+  // Auto-detecta idioma do template de aniversÃ¡rio quando nÃ£o definido por env
   async function __tplDetectLang(templateName) {
     try {
       const bizId = (process.env.WHATSAPP_BUSINESS_ID || '').trim();
@@ -2420,7 +2448,7 @@ async function enviarComunicadoAniversarioHoje(opts = {}) {
     : async (numero, templateName, variaveis = []) => {
         const token = process.env.WHATSAPP_TOKEN;
         const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-        if (!token || !phoneNumberId) throw new Error("WHATSAPP_TOKEN/WHATSAPP_PHONE_NUMBER_ID não configurados.");
+        if (!token || !phoneNumberId) throw new Error("WHATSAPP_TOKEN/WHATSAPP_PHONE_NUMBER_ID nÃ£o configurados.");
         const url = `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`;
         const body = {
           messaging_product: "whatsapp",
@@ -2479,12 +2507,12 @@ async function enviarComunicadoAniversarioHoje(opts = {}) {
     return !!d && d.getUTCMonth() === refUTC.getUTCMonth() && d.getUTCDate() === refUTC.getUTCDate();
   };
 
-  // ===== DETECTAR QUANTOS PARÂMETROS O TEMPLATE EXIGE =====
+  // ===== DETECTAR QUANTOS PARÃ‚METROS O TEMPLATE EXIGE =====
   async function getTemplateParamCount(templateName) {
     try {
       const bizId = process.env.WHATSAPP_BUSINESS_ID;
       const token = process.env.WHATSAPP_TOKEN;
-      if (!bizId || !token) return null; // sem business ID, pula a auto-detecção
+      if (!bizId || !token) return null; // sem business ID, pula a auto-detecÃ§Ã£o
 
       const url = `https://graph.facebook.com/v20.0/${bizId}/message_templates?name=${encodeURIComponent(templateName)}&limit=1`;
       const { data } = await ax.get(url, {
@@ -2501,12 +2529,12 @@ async function enviarComunicadoAniversarioHoje(opts = {}) {
       if (!matches.length) return 0;
       return Math.max(...matches);
     } catch (e) {
-      console.log("[TPL] Falha ao detectar parâmetros do template:", e?.response?.data || e?.message);
+      console.log("[TPL] Falha ao detectar parÃ¢metros do template:", e?.response?.data || e?.message);
       return null;
     }
   }
 
-  // Lê configuração manual de colunas/defaults
+  // LÃª configuraÃ§Ã£o manual de colunas/defaults
   const COLS_VAR = (process.env.TEMPLATE_ANIV_COLS || "").split(/[;,]/).map(s => s.trim().toUpperCase()).filter(Boolean);
   const DEFAULTS_VAR = (process.env.TEMPLATE_ANIV_DEFAULTS || "").split(/[;,]/);
 
@@ -2535,10 +2563,10 @@ async function enviarComunicadoAniversarioHoje(opts = {}) {
   const detectedCount = await getTemplateParamCount(TEMPLATE_NAME);
   const neededCount = (detectedCount != null)
     ? detectedCount
-    : (COLS_VAR.length || 0); // fallback: usa qtas colunas você mapeou
+    : (COLS_VAR.length || 0); // fallback: usa qtas colunas vocÃª mapeou
 
   // ===== PROCESSO =====
-  console.log("[Aniversário] Lendo", SPREADSHEET_ID, RANGE_LER);
+  console.log("[AniversÃ¡rio] Lendo", SPREADSHEET_ID, RANGE_LER);
   const sheets = getSheets();
   const read = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
@@ -2549,7 +2577,7 @@ async function enviarComunicadoAniversarioHoje(opts = {}) {
 
   const rows = read.data.values || [];
   if (!rows.length) {
-    console.log("⚠️ Cadastro vazio para aniversário.");
+    console.log("âš ï¸ Cadastro vazio para aniversÃ¡rio.");
     return { enviados: 0, erros: 0 };
   }
 
@@ -2566,13 +2594,13 @@ async function enviarComunicadoAniversarioHoje(opts = {}) {
     const telRaw  = r[IDX.TEL];
     const st      = (r[IDX.ST_ANIV] || "").toString().trim();
 
-    if (st.toLowerCase().startsWith("aniversário enviado -")) continue;
+    if (st.toLowerCase().startsWith("aniversÃ¡rio enviado -")) continue;
     if (!isBirthdayTodayVal(nascVal, hoje)) continue;
 
     const numero = normTel(telRaw);
     if (!numero) continue;
 
-    // Monta as variáveis conforme o template
+    // Monta as variÃ¡veis conforme o template
     const paramsText = buildParamsFromRow(r, neededCount);
 
     try {
@@ -2580,11 +2608,11 @@ async function enviarComunicadoAniversarioHoje(opts = {}) {
       const row = i + 2;
       updates.push({
         range: `${SHEET_NAME}!${COL_STATUS}${row}:${COL_STATUS}${row}`,
-        values: [[`Aniversário Enviado - ${new Date().toLocaleString("pt-BR", { timeZone: TZ }).replace(/:\d{2}$/, "")}`]],
+        values: [[`AniversÃ¡rio Enviado - ${new Date().toLocaleString("pt-BR", { timeZone: TZ }).replace(/:\d{2}$/, "")}`]],
       });
       enviados++;
     } catch (e) {
-      console.error("❌ Erro WA aniversário", numero, e?.response?.data || e?.message || e);
+      console.error("âŒ Erro WA aniversÃ¡rio", numero, e?.response?.data || e?.message || e);
       const row = i + 2;
       updates.push({
         range: `${SHEET_NAME}!${COL_STATUS}${row}:${COL_STATUS}${row}`,
@@ -2599,18 +2627,19 @@ async function enviarComunicadoAniversarioHoje(opts = {}) {
       spreadsheetId: SPREADSHEET_ID,
       requestBody: { valueInputOption: "RAW", data: updates },
     });
-    console.log(`📝 Atualizadas ${updates.length} células em ${COL_STATUS} (aniversário).`);
+    console.log(`ðŸ“ Atualizadas ${updates.length} cÃ©lulas em ${COL_STATUS} (aniversÃ¡rio).`);
   } else {
-    console.log("ℹ️ Nada para atualizar em V (aniversário).");
+    console.log("â„¹ï¸ Nada para atualizar em V (aniversÃ¡rio).");
   }
 
-  console.log(`✅ Resultado Aniversário: enviados=${enviados}, erros=${erros}`);
+  console.log(`âœ… Resultado AniversÃ¡rio: enviados=${enviados}, erros=${erros}`);
   return { enviados, erros };
 }
 
 
-// Inicialização do servidor
+// InicializaÃ§Ã£o do servidor
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT}`);
+  console.log(`ðŸš€ Servidor rodando na porta ${PORT}`);
 });
+
