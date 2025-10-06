@@ -437,12 +437,35 @@ async function getLogoDataUri() {
   const now = Date.now();
   if (__logo_cache.uri && __logo_cache.expiresAt > now) return __logo_cache.uri;
   try {
-    const url = (process.env.EVENTOS_LOGO_URL || '').trim();
+    let url = (process.env.EVENTOS_LOGO_URL || '').trim();
     if (!url) return null;
-    const resp = await axios.get(url, { responseType: 'arraybuffer', timeout: 10000 });
-    const mime = resp.headers['content-type'] || 'image/png';
+
+    // Tenta baixar
+    let resp = await axios.get(url, { responseType: 'arraybuffer', timeout: 15000, validateStatus: s => s>=200 && s<400 });
+    let mime = (resp.headers['content-type'] || '').toLowerCase();
+
+    // Ajuste especial para links do imgur que retornam HTML
+    if (!mime.startsWith('image/') && /(^|\.)imgur\.com\//i.test(url)) {
+      // Converte https://imgur.com/<id>[.ext?] -> https://i.imgur.com/<id>.png
+      const m = url.match(/imgur\.com\/([A-Za-z0-9]+)(?:\.[A-Za-z0-9]+)?/i);
+      if (m && m[1]) {
+        const alt = `https://i.imgur.com/${m[1]}.png`;
+        try {
+          resp = await axios.get(alt, { responseType: 'arraybuffer', timeout: 15000, validateStatus: s => s>=200 && s<400 });
+          mime = (resp.headers['content-type'] || '').toLowerCase();
+          url = alt;
+        } catch (_) { /* mantém resposta original */ }
+      }
+    }
+
+    if (!mime.startsWith('image/')) {
+      console.warn('[EventosLogo] Conteúdo não é imagem. content-type=', mime, 'url=', url);
+      __logo_cache = { uri: null, expiresAt: now + 30*60*1000 };
+      return null;
+    }
+
     const b64 = Buffer.from(resp.data).toString('base64');
-    const uri = `data:${mime};base64,${b64}`;
+    const uri = `data:${mime || 'image/png'};base64,${b64}`;
     __logo_cache = { uri, expiresAt: now + 24*60*60*1000 };
     return uri;
   } catch (e) {
@@ -491,7 +514,7 @@ function buildSvgCalendario(reference, eventosMap, logoDataUri) {
     let usedLines = 0;
     for (let i=0; i<eventos.length; i++) {
       const e = eventos[i];
-      const titleOnly = String(e?.title || '').trim();
+      const titleOnly = stripDateFromTitle(String(e?.title || '').trim());
       const wrapped = wrapByWidth(titleOnly, maxChars);
       if (wrapped.length === 0) continue;
       for (let j=0; j<wrapped.length; j++) {
@@ -512,7 +535,7 @@ function buildSvgCalendario(reference, eventosMap, logoDataUri) {
     }
     const evText = gathered.map((l, idx)=>{
       const ty = y + 30 + idx*14;
-      return `<text x="${x+6}" y="${ty}" font-family="Arial, sans-serif" font-size="11" fill="#222">${escapeXml(l)}</text>`;
+      return `<text x="${x+10}" y="${ty}" font-family="Arial, sans-serif" font-size="11" fill="#222">${escapeXml(l)}</text>`;
     }).join('');
     cells.push(
       `<text x="${dayX}" y="${dayY}" text-anchor="end" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#222">${day}</text>` +
@@ -538,6 +561,17 @@ function buildSvgCalendario(reference, eventosMap, logoDataUri) {
 
 function escapeXml(s="") {
   return s.replace(/[&<>]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[ch]));
+}
+
+// Remove fragmentos de data no título (ex.: " - 05/10" ou " – 05 de Outubro")
+function stripDateFromTitle(t) {
+  let s = t;
+  // padrões comuns com separadores - ou –
+  s = s.replace(/\s*[\-–—]\s*\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\s*$/u, '');
+  s = s.replace(/\s*[\-–—]\s*\d{1,2}\s+de\s+[A-Za-zÀ-ÿ]+\s*$/u, '');
+  // espaços duplos
+  s = s.replace(/\s{2,}/g, ' ').trim();
+  return s;
 }
 
 async function getOrRenderCalendarPng(monthStr) {
