@@ -645,7 +645,7 @@ function formatMonthDay(dt) {
   return `${m}/${d}`; // estilo 6/20
 }
 
-function pickTopEvents(eventosMap, limit = 5) {
+function getAllEventsSorted(eventosMap) {
   const list = [];
   for (const k of Object.keys(eventosMap)) {
     const day = Number(k);
@@ -659,10 +659,10 @@ function pickTopEvents(eventosMap, limit = 5) {
     if (ta !== tb) return ta - tb;
     return String(a.title||'').localeCompare(String(b.title||''));
   });
-  return list.slice(0, limit);
+  return list;
 }
 
-function buildSvgPoster(reference, eventosMap, logoDataUri) {
+function buildSvgPoster(reference, eventosMap, logoDataUri, options = {}) {
   const W = 1080, H = 1080;
   const RADIUS = 28;
   const BORDER = 10;
@@ -672,47 +672,51 @@ function buildSvgPoster(reference, eventosMap, logoDataUri) {
   const BLACK = '#111111';
   const WHITE = '#FFFFFF';
 
-  const title = 'EVENTOS DO MÊS';
-  const rowH = 96;
-  const rowGap = 24;
-  const startY = 220; // abaixo do título
-  const circleR = 36; // diâmetro 72
-  const pillGap = 20;
+  const SPEC = {
+    title: { top: 60, size: 150, track: 1.5 },
+    row: { count: options.count || 5, gap: 24, height: 96 },
+    pill: { diameter: 84, stroke: 4, textSize: 28 },
+    card: { radius: 48, textSize: 60, leftPad: 28, ratio: 0.8, gap: 20 }
+  };
+
+  const titleText = 'EVENTOS DO MÊS';
+  const startY = SPEC.title.top + SPEC.title.size + 40; // após o título
+  const circleR = SPEC.pill.diameter / 2;
   const innerLeft = MARGIN;
   const innerRight = W - MARGIN;
-  const rectXStart = innerLeft + circleR*2 + pillGap;
+  const rectXStart = innerLeft + circleR*2 + SPEC.card.gap;
   const rectUsableW = innerRight - rectXStart;
-  const rectW = Math.floor(rectUsableW * 0.8);
-  const rectRadius = 48;
+  const rectW = Math.floor(rectUsableW * SPEC.card.ratio);
 
-  const monthName = CAL_MONTHS[reference.getMonth()];
-
-  const events = pickTopEvents(eventosMap, 5).map(e => ({
+  const allEvents = getAllEventsSorted(eventosMap).map(e => ({
     dateText: formatMonthDay(e.date),
     title: stripDateFromTitle(String(e.title||'').trim())
   }));
+  const page = Number(options.page || 1);
+  const perPage = Number(options.perPage || SPEC.row.count);
+  const start = (page - 1) * perPage;
+  const events = allEvents.slice(start, start + perPage);
 
-  const logoTag = logoDataUri ? `<image href="${logoDataUri}" x="${W- MARGIN - 120}" y="${MARGIN}" width="120" height="120" preserveAspectRatio="xMidYMid meet" />` : '';
+  const logoTag = logoDataUri ? `<image href="${logoDataUri}" x="${W- MARGIN - 140}" y="${MARGIN}" width="120" height="120" preserveAspectRatio="xMidYMid meet" />` : '';
 
-  // Função para elipse do título dentro do retângulo
   function fitTitle(t) {
-    const maxChars = Math.floor((rectW - 40) / (48 * 0.55)); // fonte grande condensada ~48px
+    const maxChars = Math.floor((rectW - SPEC.card.leftPad - 20) / (SPEC.card.textSize * 0.52));
     if (t.length <= maxChars) return t;
     return t.slice(0, Math.max(0, maxChars-1)) + '…';
   }
 
   const rows = events.map((ev, idx) => {
-    const cy = startY + idx * (rowH + rowGap) + rowH/2; // centro da linha
-    const rectY = cy - rowH/2;
+    const cy = startY + idx * (SPEC.row.height + SPEC.row.gap) + SPEC.row.height/2; // centro da linha
+    const rectY = cy - SPEC.row.height/2;
     const date = escapeXml(ev.dateText);
     const titleFitted = escapeXml(fitTitle(ev.title.toUpperCase()));
     return `
       <!-- linha ${idx+1} -->
-      <circle cx="${innerLeft + circleR}" cy="${cy}" r="${circleR}" fill="${WHITE}" stroke="${BLUE}" stroke-width="3" />
-      <text x="${innerLeft + circleR}" y="${cy+6}" text-anchor="middle" font-family="Inter, Roboto, Arial, sans-serif" font-size="24" font-weight="700" fill="${BLACK}">${date}</text>
+      <circle cx="${innerLeft + circleR}" cy="${cy}" r="${circleR}" fill="${WHITE}" stroke="${BLUE}" stroke-width="${SPEC.pill.stroke}" />
+      <text x="${innerLeft + circleR}" y="${cy+9}" text-anchor="middle" font-family="Inter, Roboto, Arial, sans-serif" font-size="${SPEC.pill.textSize}" font-weight="700" fill="${BLACK}">${date}</text>
 
-      <rect x="${rectXStart}" y="${rectY}" rx="${rectRadius}" ry="${rectRadius}" width="${rectW}" height="${rowH}" fill="${BLUE}" />
-      <text x="${rectXStart + 20}" y="${cy+16}" font-family="Anton, Impact, Arial Black, Arial, sans-serif" font-size="48" font-weight="900" fill="${WHITE}" letter-spacing="2">${titleFitted}</text>
+      <rect x="${rectXStart}" y="${rectY}" rx="${SPEC.card.radius}" ry="${SPEC.card.radius}" width="${rectW}" height="${SPEC.row.height}" fill="${BLUE}" />
+      <text x="${rectXStart + SPEC.card.leftPad}" y="${cy + Math.floor(SPEC.card.textSize/3)}" font-family="Anton, Impact, Arial Black, Arial, sans-serif" font-size="${SPEC.card.textSize}" font-weight="900" fill="${WHITE}" letter-spacing="2">${titleFitted}</text>
     `;
   }).join('');
 
@@ -729,8 +733,7 @@ function buildSvgPoster(reference, eventosMap, logoDataUri) {
 
   ${logoTag}
 
-  <text x="${MARGIN}" y="${150}" text-anchor="start" font-family="Anton, Impact, Arial Black, Arial, sans-serif" font-size="88" font-weight="900" fill="${BLACK}" letter-spacing="3">EVENTOS DO MÊS</text>
-  <text x="${MARGIN}" y="${190}" font-family="Inter, Roboto, Arial, sans-serif" font-size="22" fill="#444">${escapeXml(monthName)} ${reference.getFullYear()}</text>
+  <text x="${MARGIN}" y="${SPEC.title.top + SPEC.title.size}" text-anchor="start" font-family="Anton, Impact, Arial Black, Arial, sans-serif" font-size="${SPEC.title.size}" font-weight="900" fill="${BLACK}" letter-spacing="${SPEC.title.track}">${titleText}</text>
 
   ${rows}
 </svg>`;
@@ -748,7 +751,9 @@ app.get('/eventos/poster.png', async (req, res) => {
     const { eventosMap, hasAny } = await readEventosDoMes(ref);
     if (!hasAny) return res.status(404).send('SEM_EVENTOS');
     const logoUri = await getLogoDataUri();
-    const svg = buildSvgPoster(ref, eventosMap, logoUri);
+    const page = Number(req.query.page || 1);
+    const perPage = Number(req.query.perPage || 5);
+    const svg = buildSvgPoster(ref, eventosMap, logoUri, { page, perPage });
     const png = await sharp(Buffer.from(svg)).png().toBuffer();
     res.set('Content-Type','image/png');
     res.set('Cache-Control','public, max-age=3600');
@@ -756,6 +761,29 @@ app.get('/eventos/poster.png', async (req, res) => {
   } catch (e) {
     console.error('[EventosPoster] Erro:', e?.message || e);
     return res.status(500).send('erro');
+  }
+});
+
+// Lista de links para todas as páginas de pôster (5 eventos por página)
+app.get('/eventos/posters.json', async (req, res) => {
+  try {
+    const baseUrl = (process.env.PUBLIC_BASE_URL || '').trim() || `${req.protocol}://${req.get('host')}`;
+    const d = new Date();
+    const monthStr = (req.query.month && /\d{4}-\d{2}/.test(req.query.month))
+      ? req.query.month
+      : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const [y, m] = monthStr.split('-').map(Number);
+    const ref = new Date(y, m-1, 1);
+    const { eventosMap, hasAny } = await readEventosDoMes(ref);
+    if (!hasAny) return res.json({ status: 'SEM_EVENTOS' });
+    const all = getAllEventsSorted(eventosMap);
+    const perPage = Number(req.query.perPage || 5);
+    const pages = Math.max(1, Math.ceil(all.length / perPage));
+    const links = Array.from({length: pages}).map((_,i)=>`${baseUrl}/eventos/poster.png?month=${monthStr}&page=${i+1}&perPage=${perPage}`);
+    return res.json({ status: 'OK', links });
+  } catch (e) {
+    console.error('[EventosPosters] Erro:', e?.message || e);
+    return res.json({ status: 'ERRO', erro: e?.message || String(e) });
   }
 });
 
