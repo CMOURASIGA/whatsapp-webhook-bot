@@ -941,7 +941,7 @@ app.post("/webhook", async (req, res) => {
     // ===== NOVO FLUXO (SVG+sharp) para opção "6 - Eventos" =====
     // Mantém bloco legado abaixo para rollback, porém este if consome e retorna antes
     if (textoRecebido === "6") {
-      const saudacao = "�Y". *Agenda de Eventos do EAC - MǦs Atual";
+      const saudacao = "Agenda de Eventos do EAC - Mes Atual";
       try {
         const baseUrl = (process.env.PUBLIC_BASE_URL || '').trim() || `${req.protocol}://${req.get('host')}`;
         const dNow = new Date();
