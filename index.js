@@ -616,17 +616,17 @@ function escapeXml(s="") {
   return s.replace(/[&<>]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[ch]));
 }
 
-// Remove fragmentos de data no tÃ­tulo (ex.: " - 05/10" ou " â€“ 05 de Outubro")
+
+// Remove fragmentos de data no título (ex.: " - 05/10\ ou " - 05 de Outubro\)
 function stripDateFromTitle(t) {
   let s = t;
-  // padrÃµes comuns com separadores - ou â€“
-  s = s.replace(/\s*[\-â€“â€”]\s*\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\s*$/u, '');
-  s = s.replace(/\s*[\-â€“â€”]\s*\d{1,2}\s+de\s+[A-Za-zÃ€-Ã¿]+\s*$/u, '');
-  // espaÃ§os duplos
-  s = s.replace(/\s{2,}/g, ' ').trim();
+  // padrões comuns com separadores -, – (\\u2013) ou — (\\u2014)
+  s = s.replace(/\\s*[\\-\\u2013\\u2014]\\s*\\d{1,2}\\/\\d{1,2}(?:\\/\\d{2,4})?\\s*$/u, ");
+ s = s.replace(/\\s*[\\-\\u2013\\u2014]\\s*\\d{1,2}\\s+de\\s+[\\u0100-\\uFFFFA-Za-z]+\\s*$/u, );
+ // espaços duplos
+ s = s.replace(/\\s{2,}/g, " \).trim();
   return s;
 }
-
 async function getOrRenderCalendarPng(monthStr) {
   const now = Date.now();
   const cached = __cal_cache.get(monthStr);
