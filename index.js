@@ -321,6 +321,7 @@ const CAL_DOW = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
 const CAL_MONTHS = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 
 const __cal_cache = new Map(); // key: YYYY-MM -> { buf, expiresAt }
+let __logo_cache = { uri: null, expiresAt: 0 };
 
 function calKeyFromDate(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
@@ -362,7 +363,7 @@ async function readEventosDoMes(reference) {
 
   const get = await sheets.spreadsheets.values.get({ spreadsheetId, range });
   const rows = get?.data?.values || [];
-  const eventosMap = {}; // day -> [lines]
+  const eventosMap = {}; // day -> [{ title, date }]
 
   for (const row of rows) {
     const titulo = (row[1] || '').toString().trim(); // coluna B
@@ -372,13 +373,17 @@ async function readEventosDoMes(reference) {
     if (!dt) continue;
     if (dt >= ini && dt <= fim) {
       const day = dt.getDate();
-      const label = `${dt.toLocaleDateString('pt-BR',{ timeZone: CAL_TZ, day:'2-digit', month:'2-digit' })} - ${titulo}`;
       if (!eventosMap[day]) eventosMap[day] = [];
-      eventosMap[day].push(label);
+      eventosMap[day].push({ title: titulo, date: dt });
     }
   }
-  // ordenar por label
-  Object.keys(eventosMap).forEach(k => eventosMap[k].sort());
+  // ordenar por data/hora e título
+  Object.keys(eventosMap).forEach(k => eventosMap[k].sort((a, b) => {
+    const ta = a.date?.getTime?.() || 0;
+    const tb = b.date?.getTime?.() || 0;
+    if (ta !== tb) return ta - tb;
+    return String(a.title||'').localeCompare(String(b.title||''));
+  }));
   const hasAny = Object.keys(eventosMap).length > 0;
   return { eventosMap, hasAny };
 }
@@ -391,7 +396,63 @@ function limitarEventos(lines, max) {
   return shown;
 }
 
-function buildSvgCalendario(reference, eventosMap) {
+// Aproximação de wrap por largura da célula
+function wrapByWidth(text, maxChars) {
+  if (!text) return [""];
+  if (text.length <= maxChars) return [text];
+  const out = [];
+  const words = text.split(/\s+/);
+  let line = "";
+  for (const w of words) {
+    if ((line ? line.length + 1 : 0) + w.length <= maxChars) {
+      line = line ? line + " " + w : w;
+    } else {
+      if (line) out.push(line);
+      if (w.length > maxChars) {
+        // quebra palavra longa
+        let p = 0;
+        while (p < w.length) {
+          out.push(w.slice(p, p + maxChars));
+          p += maxChars;
+          if (out.length > 200) break; // guarda
+        }
+        line = "";
+      } else {
+        line = w;
+      }
+    }
+  }
+  if (line) out.push(line);
+  return out;
+}
+
+function computeMaxChars(cellWidthPx, fontPx) {
+  const approxCharW = fontPx * 0.58; // Arial aproximação
+  const usable = Math.max(0, cellWidthPx - 12);
+  return Math.max(8, Math.floor(usable / approxCharW));
+}
+
+// Logo data URI (cache)
+async function getLogoDataUri() {
+  const now = Date.now();
+  if (__logo_cache.uri && __logo_cache.expiresAt > now) return __logo_cache.uri;
+  try {
+    const url = (process.env.EVENTOS_LOGO_URL || '').trim();
+    if (!url) return null;
+    const resp = await axios.get(url, { responseType: 'arraybuffer', timeout: 10000 });
+    const mime = resp.headers['content-type'] || 'image/png';
+    const b64 = Buffer.from(resp.data).toString('base64');
+    const uri = `data:${mime};base64,${b64}`;
+    __logo_cache = { uri, expiresAt: now + 24*60*60*1000 };
+    return uri;
+  } catch (e) {
+    console.warn('[EventosLogo] Falha ao carregar logo:', e?.message || e);
+    __logo_cache = { uri: null, expiresAt: now + 60*60*1000 };
+    return null;
+  }
+}
+
+function buildSvgCalendario(reference, eventosMap, logoDataUri) {
   const monthName = CAL_MONTHS[reference.getMonth()];
   const title = `Agenda de Eventos – ${monthName} ${reference.getFullYear()}`;
   const first = new Date(reference.getFullYear(), reference.getMonth(), 1);
@@ -424,8 +485,32 @@ function buildSvgCalendario(reference, eventosMap) {
     const dayX = x + CAL_CELL_W - 8;
     const dayY = y + 16;
     const eventos = eventosMap[day] || [];
-    const lines = limitarEventos(eventos, CAL_MAX_EVENT_LINES);
-    const evText = lines.map((l, idx)=>{
+    // Formata eventos: usa somente o título (não repete a data)
+    const maxChars = computeMaxChars(CAL_CELL_W, 11);
+    const gathered = [];
+    let usedLines = 0;
+    for (let i=0; i<eventos.length; i++) {
+      const e = eventos[i];
+      const titleOnly = String(e?.title || '').trim();
+      const wrapped = wrapByWidth(titleOnly, maxChars);
+      if (wrapped.length === 0) continue;
+      for (let j=0; j<wrapped.length; j++) {
+        if (usedLines >= CAL_MAX_EVENT_LINES) break;
+        const prefix = j === 0 ? '• ' : '  ';
+        gathered.push(prefix + wrapped[j]);
+        usedLines++;
+      }
+      if (usedLines >= CAL_MAX_EVENT_LINES) break;
+    }
+    // Se sobrar eventos não exibidos, adiciona "+N mais"
+    const totalLinesIfSingle = eventos.length; // aproximado por evento
+    if (eventos.length > 0) {
+      const remaining = eventos.length - Math.max(0, gathered.length > 0 ? Math.ceil(gathered.length/2) : 0);
+      if (remaining > 0 && usedLines < CAL_MAX_EVENT_LINES) {
+        gathered[CAL_MAX_EVENT_LINES-1] = `+${remaining} mais`;
+      }
+    }
+    const evText = gathered.map((l, idx)=>{
       const ty = y + 30 + idx*14;
       return `<text x="${x+6}" y="${ty}" font-family="Arial, sans-serif" font-size="11" fill="#222">${escapeXml(l)}</text>`;
     }).join('');
@@ -436,9 +521,12 @@ function buildSvgCalendario(reference, eventosMap) {
     col++; if (col>=CAL_COLS) { col=0; row++; }
   }
 
+  const logoTag = logoDataUri ? `<image href="${logoDataUri}" x="${CAL_MARGIN_X}" y="12" width="56" height="56" preserveAspectRatio="xMidYMid meet" />` : '';
+
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="${CAL_PAGE_W}" height="${CAL_PAGE_H}" viewBox="0 0 ${CAL_PAGE_W} ${CAL_PAGE_H}" xmlns="http://www.w3.org/2000/svg">
   <rect x="0" y="0" width="${CAL_PAGE_W}" height="${CAL_PAGE_H}" fill="#FFFFFF" />
+  ${logoTag}
   <text x="${CAL_PAGE_W/2}" y="${20 + CAL_TITLE_H - 12}" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#111">${escapeXml(title)}</text>
   ${headerDays}
   ${linesH}
@@ -470,7 +558,8 @@ async function getOrRenderCalendarPng(monthStr) {
   }
 
   const refDate = new Date(y, m-1, 1);
-  const svg = buildSvgCalendario(refDate, eventosMap);
+  const logoUri = await getLogoDataUri();
+  const svg = buildSvgCalendario(refDate, eventosMap, logoUri);
   const png = await sharp(Buffer.from(svg)).png().toBuffer();
   __cal_cache.set(monthStr, { buf: png, expiresAt: now + 6*60*60*1000 }); // 6h
   return png;
