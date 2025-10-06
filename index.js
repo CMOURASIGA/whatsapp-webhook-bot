@@ -1406,15 +1406,16 @@ app.post("/webhook", async (req, res) => {
         const monthStr = `${dNow.getFullYear()}-${String(dNow.getMonth()+1).padStart(2,'0')}`;
         const postersUrl = `${baseUrl}/eventos/posters2.json?month=${monthStr}`;
         const { data } = await axios.get(postersUrl, { timeout: 10000 });
-        const links = Array.isArray(data?.links) ? data.links : []; console.log( `[Eventos/6] posters2.json -> url=${postersUrl} links=${links.length}`); 
         const links = Array.isArray(data?.links) ? data.links : [];
-        console.log( `[Eventos/6] posters2.json -> url=${postersUrl} links=${links.length}`); 
-        if ( !links.length) { 
-          await enviarMensagem(numero, " Ainda nao ha eventos cadastrados para este mes.\);
- return res.sendStatus(200);
- }
- await enviarMensagem(numero, \Proximos Eventos\);
- for (const link of links) {
+        console.log(`[Eventos/6] posters2.json -> url=${postersUrl} links=${links.length}`);
+        if (!links.length) {
+          await enviarMensagem(numero, "Ainda nao ha eventos cadastrados para este mes.");
+          return res.sendStatus(200);
+        }
+        await enviarMensagem(numero, "Proximos Eventos");
+        for (const link of links) {
+          await axios.post(
+            graphUrl(`${phone_number_id}/messages`),
             { messaging_product: "whatsapp", to: numero, type: "image", image: { link } },
             { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } }
           );
