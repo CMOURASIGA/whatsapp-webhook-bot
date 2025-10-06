@@ -859,7 +859,7 @@ function buildSvgPosterV2(reference, eventosMap, logoDataUri, options = {}) {
   const TITLE_MAX = 130, TITLE_MIN = 90, TRACK = 2; // letter-spacing px
 
   const hasLogo = Boolean(logoDataUri);
-  const titleText = 'PR\\u00D3XIMOS EVENTOS';
+  const titleText = 'PR\u00D3XIMOS EVENTOS';
 
   const circleR = PILL_D/2;
   const innerLeft = M, innerRight = W - M;
