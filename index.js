@@ -322,6 +322,7 @@ const CAL_MONTHS = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho
 
 const __cal_cache = new Map(); // key: YYYY-MM -> { buf, expiresAt }
 let __logo_cache = { key: null, uri: null, expiresAt: 0 };
+const __font_cache = new Map(); // key -> { uri, expiresAt }
 
 function calKeyFromDate(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
@@ -494,6 +495,35 @@ async function getLogoDataUri() {
     console.warn('[EventosLogo] Falha ao carregar logo:', e?.message || e);
     // Em erro genérico, aplica backoff de 2h para evitar repetir
     __logo_cache = { key: cacheKey, uri: null, expiresAt: now + 2*60*60*1000 };
+    return null;
+  }
+}
+
+// Carrega fonte como data URI (woff2). Suporta *_WOFF2 (base64 sem cabeçalho) ou *_URL
+async function getFontDataUri(kind) {
+  const now = Date.now();
+  const cache = __font_cache.get(kind);
+  if (cache && cache.expiresAt > now) return cache.uri;
+  const envBase64 = (process.env[kind === 'chewy' ? 'EVENTOS_FONT_CHEWY_WOFF2' : 'EVENTOS_FONT_ANTONIO_WOFF2'] || '').trim();
+  if (envBase64) {
+    const uri = `data:font/woff2;base64,${envBase64}`;
+    __font_cache.set(kind, { uri, expiresAt: now + 365*24*60*60*1000 });
+    return uri;
+  }
+  const envUrl = (process.env[kind === 'chewy' ? 'EVENTOS_FONT_CHEWY_URL' : 'EVENTOS_FONT_ANTONIO_URL'] || '').trim();
+  if (!envUrl) return null;
+  try {
+    const UA = 'Mozilla/5.0 (compatible; EACBot/1.0)';
+    const resp = await axios.get(envUrl, { responseType: 'arraybuffer', timeout: 15000, headers: { 'User-Agent': UA }, validateStatus: s => s>=200 && s<400 });
+    const mime = (resp.headers['content-type'] || 'font/woff2').toLowerCase();
+    if (!mime.includes('font') && !mime.includes('octet-stream')) throw new Error(`conteudo_nao_fonte: ${mime}`);
+    const b64 = Buffer.from(resp.data).toString('base64');
+    const uri = `data:${mime.includes('font') ? mime : 'font/woff2'};base64,${b64}`;
+    __font_cache.set(kind, { uri, expiresAt: now + 90*24*60*60*1000 });
+    return uri;
+  } catch (e) {
+    console.warn('[FontFetch] Falha ao baixar fonte', kind, e?.message || e);
+    __font_cache.set(kind, { uri: null, expiresAt: now + 24*60*60*1000 });
     return null;
   }
 }
@@ -875,15 +905,24 @@ function buildSvgPosterV2(reference, eventosMap, logoDataUri, options = {}) {
     `;
   }).join('');
 
+  const fAntonio = options.fontAntonio || '';
+  const fChewy = options.fontChewy || '';
+  const styleFonts = `
+    <style>
+      ${fAntonio ? `@font-face { font-family: 'Antonio'; src: url(${fAntonio}) format('woff2'); font-weight: 700; font-style: normal; }` : ''}
+      ${fChewy ? `@font-face { font-family: 'Chewy'; src: url(${fChewy}) format('woff2'); font-weight: 400; font-style: normal; }` : ''}
+    </style>
+  `;
+
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+  ${styleFonts}
   <rect x="0" y="0" width="${W}" height="${H}" fill="#000" />
   <rect x="${BORDER/2}" y="${BORDER/2}" width="${W-BORDER}" height="${H-BORDER}" rx="${R}" ry="${R}" fill="${OFF}" stroke="${BLUE}" stroke-width="${BORDER}" />
-  ${logoTag}
-  <text x="${M}" y="${60 + titleSize}" text-anchor="start" font-family="Anton, Impact, Arial Black, Arial, sans-serif" font-size="${titleSize}" font-weight="900" fill="${BLACK}" letter-spacing="${TRACK}">${titleText}</text>
-  ${logoTag}
-  <text x="${M + 120 + 20}" y="${H - M - 60}" text-anchor="start" font-family="'Segoe UI', Inter, Arial, sans-serif" font-size="54" font-weight="800" fill="${BLUE}">EAC – Encontro de Adolescentes</text>
+  <text x="${M}" y="${60 + titleSize}" text-anchor="start" font-family="Antonio, Anton, Impact, Arial Black, Arial, sans-serif" font-size="${titleSize}" font-weight="900" fill="${BLACK}" letter-spacing="${TRACK}">${titleText}</text>
   ${rows}
+  ${logoTag}
+  <text x="${M + 120 + 20}" y="${H - M - 60}" text-anchor="start" font-family="Chewy, 'Segoe UI', Inter, Arial, sans-serif" font-size="54" font-weight="800" fill="${BLUE}">EAC - Encontro de Adolescentes</text>
 </svg>`;
   return svg;
 }
@@ -897,9 +936,11 @@ app.get('/eventos/poster2.png', async (req, res) => {
     const { eventosMap, hasAny } = await readEventosDoMes(ref);
     if (!hasAny) return res.status(404).send('SEM_EVENTOS');
     const logoUri = await getLogoDataUri();
+    const fontAntonio = await getFontDataUri('antonio');
+    const fontChewy = await getFontDataUri('chewy');
     const page = Number(req.query.page || 1);
     const perPage = Number(req.query.perPage || 5);
-    const svg = buildSvgPosterV2(ref, eventosMap, logoUri, { page, perPage });
+    const svg = buildSvgPosterV2(ref, eventosMap, logoUri, { page, perPage, fontAntonio, fontChewy });
     const png = await sharp(Buffer.from(svg)).png().toBuffer();
     res.type('image/png').send(png);
   } catch (e) {
