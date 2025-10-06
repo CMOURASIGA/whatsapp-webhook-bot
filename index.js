@@ -856,10 +856,10 @@ function buildSvgPosterV2(reference, eventosMap, logoDataUri, options = {}) {
   const ROW_H = 96, ROW_GAP = 24, PILL_D = 84, CARD_RADIUS = 48, CARD_PAD_L = 28;
   const CARD_RIGHT_MARGIN = 8; // aproxima o cartÃ£o da borda direita
   const TITLE_MAX = 150, TITLE_MIN = 96, TRACK = 2; // letter-spacing px
-  const CARD_TEXT = 60, CARD_TEXT_SMALL = 52;
+  const TITLE_MAX = 130, TITLE_MIN = 90, TRACK = 2; // letter-spacing px
 
   const hasLogo = Boolean(logoDataUri);
-  const titleText = 'PRÃ“XIMOS EVENTOS';
+  const titleText = 'PR\\u00D3XIMOS EVENTOS';
 
   const circleR = PILL_D/2;
   const innerLeft = M, innerRight = W - M;
@@ -1307,7 +1307,7 @@ async function verificarEventosParaLembrete() {
       const updates = contatos.map(([numero, status]) => [status]);
 
       if (eventosDaSemana.length > 0) {
-        const saudacao = "ðŸŒž Bom dia! Aqui Ã© o EAC PorciÃºncula trazendo um resumo dos prÃ³ximos eventos:\n";
+        const saudacao = "ðŸŒž Bom dia! Aqui Ã© o EAC PorciÃºncula trazendo um resumo dos PR\\u00D3XIMOS EVENTOS:\n";
         const cabecalho = `ðŸ“… *Agenda da Semana (${hoje.toLocaleDateString()} a ${seteDiasDepois.toLocaleDateString()})*\n\n`;
         const corpo = eventosDaSemana.join("\n");
         const rodape = "\nðŸ‘‰ Se tiver dÃºvida, fale com a gente!";
@@ -1533,7 +1533,7 @@ async function dispararEventosSemTemplate() {
       return;
     }
 
-    const mensagemFinal = `ðŸ“¢ *PrÃ³ximos Eventos do EAC:*\n\n${eventosDaSemana.join("\n")}\n\nðŸŸ  Se tiver dÃºvidas, fale com a gente!`;
+    const mensagemFinal = `ðŸ“¢ *PR\\u00D3XIMOS EVENTOS do EAC:*\n\n${eventosDaSemana.join("\n")}\n\nðŸŸ  Se tiver dÃºvidas, fale com a gente!`;
 
     // 2. LÃ³gica de envio para as planilhas de contatos
     // Usaremos um Set para garantir que cada nÃºmero receba a mensagem apenas uma vez
@@ -2569,4 +2569,5 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`ðŸš€ Servidor rodando na porta ${PORT}`);
 });
+
 
