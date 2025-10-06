@@ -787,6 +787,120 @@ app.get('/eventos/posters.json', async (req, res) => {
   }
 });
 
+// ================================================================
+// Poster v2 (design refinado) - rotas experimentais
+// ================================================================
+function buildSvgPosterV2(reference, eventosMap, logoDataUri, options = {}) {
+  const W = 1080, H = 1080;
+  const M = 40; // margem externa
+  const BORDER = 10, R = 28;
+  const BLUE = '#2457D6', OFF = '#F9F7F2', BLACK = '#111111', WHITE = '#FFFFFF';
+
+  const ROW_H = 96, ROW_GAP = 24, PILL_D = 84, CARD_RADIUS = 48, CARD_RATIO = 0.82, CARD_PAD_L = 28;
+  const TITLE_MAX = 150, TITLE_MIN = 96, TRACK = 2; // letter-spacing px
+  const CARD_TEXT = 60, CARD_TEXT_SMALL = 52;
+
+  const hasLogo = Boolean(logoDataUri);
+  const titleText = 'EVENTOS DO MES';
+
+  const circleR = PILL_D/2;
+  const innerLeft = M, innerRight = W - M;
+  const rectXStart = innerLeft + PILL_D + 20; // pílula + gap 20
+  const rectUsableW = innerRight - rectXStart;
+  const rectW = Math.floor(rectUsableW * CARD_RATIO);
+
+  const approxWidth = (t, px, track) => t.length * px * 0.62 + Math.max(0, t.length-1) * track;
+  const titleMaxWidth = W - 2*M - (hasLogo ? 160 : 0);
+  let titleSize = TITLE_MAX;
+  while (approxWidth(titleText, titleSize, TRACK) > titleMaxWidth && titleSize > TITLE_MIN) titleSize -= 4;
+
+  const startY = 60 + titleSize + 40; // abaixo do título
+
+  const allEvents = getAllEventsSorted(eventosMap).map(e => ({
+    dateText: formatMonthDay(e.date),
+    title: stripDateFromTitle(String(e.title||'').trim()).toUpperCase(),
+  }));
+  const page = Number(options.page || 1);
+  const perPage = Number(options.perPage || 5);
+  const start = (page - 1) * perPage;
+  const events = allEvents.slice(start, start + perPage);
+
+  const logoTag = logoDataUri ? `<image href="${logoDataUri}" x="${W- M - 140}" y="${M}" width="120" height="120" preserveAspectRatio="xMidYMid meet" />` : '';
+
+  function fitCardTitle(text) {
+    const maxChars = Math.floor((rectW - CARD_PAD_L - 20) / (CARD_TEXT * 0.52));
+    if (text.length <= maxChars) return { text, size: CARD_TEXT };
+    const maxCharsSmall = Math.floor((rectW - CARD_PAD_L - 20) / (CARD_TEXT_SMALL * 0.52));
+    if (text.length <= maxCharsSmall) return { text, size: CARD_TEXT_SMALL };
+    return { text: text.slice(0, Math.max(0, maxCharsSmall-1)) + '…', size: CARD_TEXT_SMALL };
+  }
+
+  const rows = events.map((ev, idx) => {
+    const cy = startY + idx * (ROW_H + ROW_GAP) + ROW_H/2;
+    const yRect = cy - ROW_H/2;
+    const date = escapeXml(ev.dateText);
+    const f = fitCardTitle(ev.title);
+    const fitted = escapeXml(f.text);
+    const yText = cy + Math.floor(f.size/3);
+    return `
+      <circle cx="${innerLeft + circleR}" cy="${cy}" r="${circleR}" fill="${WHITE}" stroke="${BLUE}" stroke-width="4" />
+      <text x="${innerLeft + circleR}" y="${cy+9}" text-anchor="middle" font-family="Inter, Roboto, Arial, sans-serif" font-size="28" font-weight="700" fill="${BLACK}">${date}</text>
+      <rect x="${rectXStart}" y="${yRect}" rx="${CARD_RADIUS}" ry="${CARD_RADIUS}" width="${rectW}" height="${ROW_H}" fill="${BLUE}" />
+      <text x="${rectXStart + CARD_PAD_L}" y="${yText}" font-family="Anton, Impact, Arial Black, Arial, sans-serif" font-size="${f.size}" font-weight="900" fill="${WHITE}" letter-spacing="2">${fitted}</text>
+    `;
+  }).join('');
+
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="${W}" height="${H}" fill="#000" />
+  <rect x="${BORDER/2}" y="${BORDER/2}" width="${W-BORDER}" height="${H-BORDER}" rx="${R}" ry="${R}" fill="${OFF}" stroke="${BLUE}" stroke-width="${BORDER}" />
+  ${logoTag}
+  <text x="${M}" y="${60 + titleSize}" text-anchor="start" font-family="Anton, Impact, Arial Black, Arial, sans-serif" font-size="${titleSize}" font-weight="900" fill="${BLACK}" letter-spacing="${TRACK}">${titleText}</text>
+  ${rows}
+</svg>`;
+  return svg;
+}
+
+app.get('/eventos/poster2.png', async (req, res) => {
+  try {
+    const d = new Date();
+    const monthStr = (req.query.month && /\d{4}-\d{2}/.test(req.query.month)) ? req.query.month : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const [y, m] = monthStr.split('-').map(Number);
+    const ref = new Date(y, m-1, 1);
+    const { eventosMap, hasAny } = await readEventosDoMes(ref);
+    if (!hasAny) return res.status(404).send('SEM_EVENTOS');
+    const logoUri = await getLogoDataUri();
+    const page = Number(req.query.page || 1);
+    const perPage = Number(req.query.perPage || 5);
+    const svg = buildSvgPosterV2(ref, eventosMap, logoUri, { page, perPage });
+    const png = await sharp(Buffer.from(svg)).png().toBuffer();
+    res.type('image/png').send(png);
+  } catch (e) {
+    console.error('[Poster2] Erro:', e?.message || e);
+    res.status(500).send('erro');
+  }
+});
+
+app.get('/eventos/posters2.json', async (req, res) => {
+  try {
+    const baseUrl = (process.env.PUBLIC_BASE_URL || '').trim() || `${req.protocol}://${req.get('host')}`;
+    const d = new Date();
+    const monthStr = (req.query.month && /\d{4}-\d{2}/.test(req.query.month)) ? req.query.month : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const [y, m] = monthStr.split('-').map(Number);
+    const ref = new Date(y, m-1, 1);
+    const { eventosMap, hasAny } = await readEventosDoMes(ref);
+    if (!hasAny) return res.json({ status: 'SEM_EVENTOS' });
+    const all = getAllEventsSorted(eventosMap);
+    const perPage = Number(req.query.perPage || 5);
+    const pages = Math.max(1, Math.ceil(all.length / perPage));
+    const links = Array.from({length: pages}).map((_,i)=>`${baseUrl}/eventos/poster2.png?month=${monthStr}&page=${i+1}&perPage=${perPage}`);
+    return res.json({ status: 'OK', links });
+  } catch (e) {
+    console.error('[Posters2] Erro:', e?.message || e);
+    return res.json({ status: 'ERRO', erro: e?.message || String(e) });
+  }
+});
+
 // sender WA mínimo (usado só se você não tiver um global)
 async function enviarWhatsAppTemplateLocal(numero, templateName, variaveis = []) {
   const token = process.env.WHATSAPP_TOKEN;
