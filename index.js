@@ -616,15 +616,18 @@ function escapeXml(s="") {
   return s.replace(/[&<>]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[ch]));
 }
 
+// Helpers para stripDateFromTitle
+const RE_TRAIL_SLASH_DATE = new RegExp("\\s*[\\-\\u2013\\u2014]\\s*\\d{1,2}/\\d{1,2}(?:/\\d{2,4})?\\s*$","u");
+const RE_TRAIL_TEXTUAL_DATE = new RegExp("\\s*[\\-\\u2013\\u2014]\\s*\\d{1,2}\\s+de\\s+[A-Za-z\\u00C0-\\u024F]+\\s*$","u");
 
 // Remove fragmentos de data no título (ex.: " - 05/10\ ou " - 05 de Outubro\)
 function stripDateFromTitle(t) {
   let s = t;
   // padrões comuns com separadores -, – (\\u2013) ou — (\\u2014)
-  s = s.replace(/\\s*[\\-\\u2013\\u2014]\\s*\\d{1,2}\\/\\d{1,2}(?:\\/\\d{2,4})?\\s*$/u, ");
- s = s.replace(/\\s*[\\-\\u2013\\u2014]\\s*\\d{1,2}\\s+de\\s+[\\u0100-\\uFFFFA-Za-z]+\\s*$/u, );
+  try { s = s.replace(RE_TRAIL_SLASH_DATE, ""); } catch (e) {}
+  try { s = s.replace(RE_TRAIL_TEXTUAL_DATE, ""); } catch (e) {}
  // espaços duplos
- s = s.replace(/\\s{2,}/g, " \).trim();
+  s = s.replace(/\s{2,}/g, " ").trim();
   return s;
 }
 async function getOrRenderCalendarPng(monthStr) {
