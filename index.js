@@ -321,7 +321,7 @@ const CAL_DOW = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
 const CAL_MONTHS = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 
 const __cal_cache = new Map(); // key: YYYY-MM -> { buf, expiresAt }
-let __logo_cache = { uri: null, expiresAt: 0 };
+let __logo_cache = { key: null, uri: null, expiresAt: 0 };
 
 function calKeyFromDate(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
@@ -435,42 +435,65 @@ function computeMaxChars(cellWidthPx, fontPx) {
 // Logo data URI (cache)
 async function getLogoDataUri() {
   const now = Date.now();
-  if (__logo_cache.uri && __logo_cache.expiresAt > now) return __logo_cache.uri;
+  // Permite injetar data URI diretamente por ENV (bypassa rede)
+  const envData = (process.env.EVENTOS_LOGO_DATA_URI || '').trim();
+  if (envData.startsWith('data:')) {
+    __logo_cache = { key: 'env:data', uri: envData, expiresAt: now + 365*24*60*60*1000 };
+    return envData;
+  }
+  const urlEnv = (process.env.EVENTOS_LOGO_URL || '').trim();
+  const cacheKey = urlEnv;
+  if (__logo_cache.uri && __logo_cache.expiresAt > now && __logo_cache.key === cacheKey) return __logo_cache.uri;
   try {
-    let url = (process.env.EVENTOS_LOGO_URL || '').trim();
+    let url = urlEnv;
     if (!url) return null;
+    const UA = 'Mozilla/5.0 (compatible; EACBot/1.0; +https://example.com)';
 
-    // Tenta baixar
-    let resp = await axios.get(url, { responseType: 'arraybuffer', timeout: 15000, validateStatus: s => s>=200 && s<400 });
-    let mime = (resp.headers['content-type'] || '').toLowerCase();
+    async function fetchImage(u) {
+      const resp = await axios.get(u, {
+        responseType: 'arraybuffer',
+        timeout: 15000,
+        headers: { 'User-Agent': UA, 'Accept': 'image/*,*/*;q=0.8' },
+        validateStatus: s => s>=200 && s<400,
+      });
+      const mime = (resp.headers['content-type'] || '').toLowerCase();
+      if (!mime.startsWith('image/')) throw new Error(`conteudo_nao_imagem: ${mime}`);
+      return { data: resp.data, mime };
+    }
 
-    // Ajuste especial para links do imgur que retornam HTML
-    if (!mime.startsWith('image/') && /(^|\.)imgur\.com\//i.test(url)) {
-      // Converte https://imgur.com/<id>[.ext?] -> https://i.imgur.com/<id>.png
-      const m = url.match(/imgur\.com\/([A-Za-z0-9]+)(?:\.[A-Za-z0-9]+)?/i);
-      if (m && m[1]) {
-        const alt = `https://i.imgur.com/${m[1]}.png`;
-        try {
-          resp = await axios.get(alt, { responseType: 'arraybuffer', timeout: 15000, validateStatus: s => s>=200 && s<400 });
-          mime = (resp.headers['content-type'] || '').toLowerCase();
-          url = alt;
-        } catch (_) { /* mantém resposta original */ }
+    // 1) Tenta URL direta
+    let fetched;
+    try {
+      fetched = await fetchImage(url);
+    } catch (e1) {
+      // 2) Se for imgur.com, converte para i.imgur.com/<id>.png
+      if ((/imgur\.com\//i).test(url)) {
+        const m = url.match(/imgur\.com\/([A-Za-z0-9]+)(?:\.[A-Za-z0-9]+)?/i);
+        if (m && m[1]) {
+          const alt = `https://i.imgur.com/${m[1]}.png`;
+          try { fetched = await fetchImage(alt); url = alt; } catch (e2) { /* segue */ }
+        }
+      }
+      // 3) Proxy sem custo (weserv) para contornar 429/CDN
+      if (!fetched) {
+        const prox = `https://images.weserv.nl/?url=${encodeURIComponent(url.replace(/^https?:\/\//,''))}`;
+        try { fetched = await fetchImage(prox); } catch (e3) {
+          // Se falhar com 429 ou outro, aplica backoff maior
+          __logo_cache = { key: cacheKey, uri: null, expiresAt: now + 6*60*60*1000 };
+          console.warn('[EventosLogo] Falha em todas tentativas:', e1?.message, '| prox');
+          return null;
+        }
       }
     }
 
-    if (!mime.startsWith('image/')) {
-      console.warn('[EventosLogo] Conteúdo não é imagem. content-type=', mime, 'url=', url);
-      __logo_cache = { uri: null, expiresAt: now + 30*60*1000 };
-      return null;
-    }
-
-    const b64 = Buffer.from(resp.data).toString('base64');
-    const uri = `data:${mime || 'image/png'};base64,${b64}`;
-    __logo_cache = { uri, expiresAt: now + 24*60*60*1000 };
+    const b64 = Buffer.from(fetched.data).toString('base64');
+    const uri = `data:${fetched.mime || 'image/png'};base64,${b64}`;
+    __logo_cache = { key: cacheKey, uri, expiresAt: now + 24*60*60*1000 };
     return uri;
   } catch (e) {
     console.warn('[EventosLogo] Falha ao carregar logo:', e?.message || e);
-    __logo_cache = { uri: null, expiresAt: now + 60*60*1000 };
+    // Em erro genérico, aplica backoff de 2h para evitar repetir
+    __logo_cache = { key: cacheKey, uri: null, expiresAt: now + 2*60*60*1000 };
     return null;
   }
 }
