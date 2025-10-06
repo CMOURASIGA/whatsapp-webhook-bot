@@ -640,9 +640,10 @@ app.get('/eventos/status.json', async (req, res) => {
 // NOVA SAÍDA: PÔSTER 1080x1080 (lista de eventos)
 // ================================================================
 function formatMonthDay(dt) {
-  const m = dt.getMonth() + 1;
+  // dd/mm para combinar com o exemplo fornecido
   const d = dt.getDate();
-  return `${m}/${d}`; // estilo 6/20
+  const m = dt.getMonth() + 1;
+  return `${String(d)}/${String(m)}`;
 }
 
 function getAllEventsSorted(eventosMap) {
@@ -796,16 +797,16 @@ function buildSvgPosterV2(reference, eventosMap, logoDataUri, options = {}) {
   const BORDER = 10, R = 28;
   const BLUE = '#2457D6', OFF = '#F9F7F2', BLACK = '#111111', WHITE = '#FFFFFF';
 
-  const ROW_H = 96, ROW_GAP = 24, PILL_D = 84, CARD_RADIUS = 48, CARD_RATIO = 0.82, CARD_PAD_L = 28;
+  const ROW_H = 96, ROW_GAP = 24, PILL_D = 84, CARD_RADIUS = 48, CARD_RATIO = 0.86, CARD_PAD_L = 28;
   const TITLE_MAX = 150, TITLE_MIN = 96, TRACK = 2; // letter-spacing px
   const CARD_TEXT = 60, CARD_TEXT_SMALL = 52;
 
   const hasLogo = Boolean(logoDataUri);
-  const titleText = 'EVENTOS DO MES';
+  const titleText = 'PRÓXIMOS EVENTOS';
 
   const circleR = PILL_D/2;
   const innerLeft = M, innerRight = W - M;
-  const rectXStart = innerLeft + PILL_D + 20; // pílula + gap 20
+  const rectXStart = innerLeft + PILL_D + 12; // pílula + gap menor p/ sobrepor visualmente
   const rectUsableW = innerRight - rectXStart;
   const rectW = Math.floor(rectUsableW * CARD_RATIO);
 
@@ -825,7 +826,8 @@ function buildSvgPosterV2(reference, eventosMap, logoDataUri, options = {}) {
   const start = (page - 1) * perPage;
   const events = allEvents.slice(start, start + perPage);
 
-  const logoTag = logoDataUri ? `<image href="${logoDataUri}" x="${W- M - 140}" y="${M}" width="120" height="120" preserveAspectRatio="xMidYMid meet" />` : '';
+  // Logo principal no rodapé esquerdo, 100x100
+  const logoTag = logoDataUri ? `<image href="${logoDataUri}" x="${M+6}" y="${H - M - 110}" width="100" height="100" preserveAspectRatio="xMidYMid meet" />` : '';
 
   function fitCardTitle(text) {
     const maxChars = Math.floor((rectW - CARD_PAD_L - 20) / (CARD_TEXT * 0.52));
@@ -856,6 +858,8 @@ function buildSvgPosterV2(reference, eventosMap, logoDataUri, options = {}) {
   <rect x="${BORDER/2}" y="${BORDER/2}" width="${W-BORDER}" height="${H-BORDER}" rx="${R}" ry="${R}" fill="${OFF}" stroke="${BLUE}" stroke-width="${BORDER}" />
   ${logoTag}
   <text x="${M}" y="${60 + titleSize}" text-anchor="start" font-family="Anton, Impact, Arial Black, Arial, sans-serif" font-size="${titleSize}" font-weight="900" fill="${BLACK}" letter-spacing="${TRACK}">${titleText}</text>
+  ${logoTag}
+  <text x="${M + 120 + 20}" y="${H - M - 60}" text-anchor="start" font-family="'Segoe UI', Inter, Arial, sans-serif" font-size="54" font-weight="800" fill="${BLUE}">EAC – Encontro de Adolescentes</text>
   ${rows}
 </svg>`;
   return svg;
