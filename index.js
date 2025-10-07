@@ -1361,6 +1361,69 @@ async function verificarEventosParaLembrete() {
 // ================================================================
 // WEBHOOK PRINCIPAL - RECEBIMENTO DE MENSAGENS DO WHATSAPP
 // ================================================================
+// Versões UTF-8 corrigidas de utilitários e menu
+function isGreeting(texto) {
+  const t = (texto || "").toLowerCase();
+  const list = ["oi", "ola", "olá", "bom dia", "boa tarde", "boa noite", "e aí", "eai", "opa", "menu"];
+  return list.includes(t);
+}
+
+function montarMenuPrincipalInterativoUTF8() {
+  return {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    type: "interactive",
+    interactive: {
+      type: "list",
+      header: { type: "text", text: "📋 Menu Principal - EAC Porciúncula" },
+      body: {
+        text: "Como posso te ajudar hoje? Escolha uma das opções:\n\nToque no botão abaixo para ver as opções."
+      },
+      footer: { text: "" },
+      action: {
+        button: "Ver opções",
+        sections: [
+          {
+            title: "📒 Inscrições",
+            rows: [
+              { id: "1", title: "Formulário Encontristas", description: "Inscrição para adolescentes" },
+              { id: "2", title: "Formulário Encontreiros", description: "Inscrição para equipe" }
+            ]
+          },
+          {
+            title: "📇 Contatos e Redes",
+            rows: [
+              { id: "3", title: "Instagram do EAC", description: "Nosso perfil oficial" },
+              { id: "4", title: "E-mail de contato", description: "Fale conosco por e-mail" },
+              { id: "5", title: "WhatsApp da Paróquia", description: "Contato direto" }
+            ]
+          },
+          {
+            title: "🗓️ Eventos e Conteúdo",
+            rows: [
+              { id: "6", title: "Eventos do EAC", description: "Agenda de eventos" },
+              { id: "7", title: "Playlist no Spotify", description: "Nossas músicas" },
+              { id: "9", title: "Mensagem do Dia", description: "Inspiração diária" },
+              { id: "10", title: "Versículo do Dia", description: "Palavra de Deus" }
+            ]
+          }
+        ]
+      }
+    }
+  };
+}
+
+const respostas2 = {
+  "1": [
+    "📄 *Inscrição de Encontristas*\n\nSe você quer participar como *adolescente encontrista* no nosso próximo EAC, preencha este formulário com atenção:\n🔗 https://docs.google.com/forms/d/e/1FAIpQLScrESiqWcBsnqMXGwiOOojIeU6ryhuWwZkL1kMr0QIeosgg5w/viewform?usp=preview",
+    "✅ Que legal! Para se inscrever como *adolescente encontrista*, acesse:\n🔗 https://docs.google.com/forms/d/e/1FAIpQLScrESiqWcBsnqMXGwiOOojIeU6ryhuWwZkL1kMr0QIeosgg5w/viewform?usp=preview"
+  ],
+  "2": ["📝 *Inscrição de Encontreiros*\n\nSe deseja servir como *encontreiro*, preencha aqui:\n🔗 https://forms.gle/VzqYTs9yvnACiCew6"],
+  "3": ["📷 *Nosso Instagram Oficial*\n\n🔗 https://www.instagram.com/eacporciuncula/"],
+  "4": ["✉️ *Fale conosco por e-mail*\n\n📧 eacporciunculadesantana@gmail.com"],
+  "5": ["📱 *WhatsApp da Paróquia*\n\n🔗 https://wa.me/5521981140278"],
+  "7": ["🎵 *Playlist no Spotify*\n\n🔗 https://open.spotify.com/playlist/1TC8C71sbCZM43ghR1giWH?si=zyXIhEfvSWSKG21GTIoazA&pi=FxazNzY4TJWns"]
+};
 app.post("/webhook", async (req, res) => {
   const body = req.body;
   if (body.object) {
@@ -1377,8 +1440,8 @@ app.post("/webhook", async (req, res) => {
 
     if (!textoRecebido) return res.sendStatus(200);
 
-    if (ehSaudacao(textoRecebido)) {
-      const menu = montarMenuPrincipalInterativo();
+    if (isGreeting(textoRecebido)) {
+      const menu = montarMenuPrincipalInterativoUTF8();
       await enviarMensagemInterativa(numero, menu);
       return res.sendStatus(200);
     }
@@ -1395,8 +1458,8 @@ app.post("/webhook", async (req, res) => {
       "7": ["ðŸŽµ *Playlist no Spotify*\n\nðŸ‘‰ https://open.spotify.com/playlist/1TC8C71sbCZM43ghR1giWH?si=zyXIhEfvSWSKG21GTIoazA&pi=FxazNzY4TJWns"]
     };
 
-    if (respostas[textoRecebido]) {
-      const mensagemParaEnviar = getRandomMessage(respostas[textoRecebido]);
+    if (respostas2[textoRecebido]) {
+      const mensagemParaEnviar = getRandomMessage(respostas2[textoRecebido]);
       await enviarMensagem(numero, mensagemParaEnviar);
       return res.sendStatus(200);
     }
@@ -1443,7 +1506,7 @@ app.post("/webhook", async (req, res) => {
     fallback.push("Enquanto isso, veja o menu novamente ðŸ‘‡");
 
     await enviarMensagem(numero, fallback.join("\n\n"));
-    const menu = montarMenuPrincipalInterativo();
+    const menu = montarMenuPrincipalInterativoUTF8();
     await enviarMensagemInterativa(numero, menu);
     return res.sendStatus(200);
   }
