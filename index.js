@@ -317,8 +317,8 @@ const CAL_CELL_W = CAL_GRID_W / CAL_COLS;
 const CAL_CELL_H = CAL_GRID_H / (CAL_ROWS - 1);
 const CAL_MAX_EVENT_LINES = 4;
 const CAL_TZ = "America/Sao_Paulo";
-const CAL_DOW = ["Dom","Seg","Ter","Qua","Qui","Sex","SÃ¡b"];
-const CAL_MONTHS = ["Janeiro","Fevereiro","MarÃ§o","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+const CAL_DOW = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+const CAL_MONTHS = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 
 const __cal_cache = new Map(); // key: YYYY-MM -> { buf, expiresAt }
 let __logo_cache = { key: null, uri: null, expiresAt: 0 };
@@ -530,7 +530,7 @@ async function getFontDataUri(kind) {
 
 function buildSvgCalendario(reference, eventosMap, logoDataUri) {
   const monthName = CAL_MONTHS[reference.getMonth()];
-  const title = `Agenda de Eventos â€“ ${monthName} ${reference.getFullYear()}`;
+  const title = `Agenda de Eventos – ${monthName} ${reference.getFullYear()}`;
   const first = new Date(reference.getFullYear(), reference.getMonth(), 1);
   const firstDow = first.getDay(); // 0=Dom
   const lastDay = new Date(reference.getFullYear(), reference.getMonth()+1, 0).getDate();
@@ -572,7 +572,7 @@ function buildSvgCalendario(reference, eventosMap, logoDataUri) {
       if (wrapped.length === 0) continue;
       for (let j=0; j<wrapped.length; j++) {
         if (usedLines >= CAL_MAX_EVENT_LINES) break;
-        const prefix = j === 0 ? 'â€¢ ' : '  ';
+        const prefix = j === 0 ? '• ' : '  ';
         gathered.push(prefix + wrapped[j]);
         usedLines++;
       }
@@ -641,7 +641,7 @@ async function getOrRenderCalendarPng(monthStr) {
 
   if (!hasAny) {
     // Gera uma imagem simples "Sem eventos" para manter compatibilidade visual
-    const svg = `<?xml version="1.0"?><svg width="${CAL_PAGE_W}" height="${CAL_PAGE_H}" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="#fff"/><text x="50%" y="50%" font-family="Arial, sans-serif" font-size="24" text-anchor="middle" fill="#333">Sem eventos neste mÃªs</text></svg>`;
+    const svg = `<?xml version="1.0"?><svg width="${CAL_PAGE_W}" height="${CAL_PAGE_H}" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="#fff"/><text x="50%" y="50%" font-family="Arial, sans-serif" font-size="24" text-anchor="middle" fill="#333">Sem eventos neste mês</text></svg>`;
     const buf = await sharp(Buffer.from(svg)).png().toBuffer();
     __cal_cache.set(monthStr, { buf, expiresAt: now + 60*60*1000 }); // 1h
     return buf;
@@ -736,7 +736,7 @@ function buildSvgPoster(reference, eventosMap, logoDataUri, options = {}) {
     card: { radius: 48, textSize: 60, leftPad: 28, ratio: 0.8, gap: 20 }
   };
 
-  const titleText = 'EVENTOS DO MÃŠS';
+  const titleText = 'EVENTOS DO MÊS';
   const startY = SPEC.title.top + SPEC.title.size + 40; // apÃ³s o tÃ­tulo
   const circleR = SPEC.pill.diameter / 2;
   const innerLeft = MARGIN;
