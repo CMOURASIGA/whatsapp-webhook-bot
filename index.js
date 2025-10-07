@@ -317,8 +317,8 @@ const CAL_CELL_W = CAL_GRID_W / CAL_COLS;
 const CAL_CELL_H = CAL_GRID_H / (CAL_ROWS - 1);
 const CAL_MAX_EVENT_LINES = 4;
 const CAL_TZ = "America/Sao_Paulo";
-const CAL_DOW = ["Dom","Seg","Ter","Qua","Qui","Sex","SÃ¡b"];
-const CAL_MONTHS = ["Janeiro","Fevereiro","MarÃ§o","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+const CAL_DOW = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+const CAL_MONTHS = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 
 const __cal_cache = new Map(); // key: YYYY-MM -> { buf, expiresAt }
 let __logo_cache = { key: null, uri: null, expiresAt: 0 };
@@ -530,7 +530,7 @@ async function getFontDataUri(kind) {
 
 function buildSvgCalendario(reference, eventosMap, logoDataUri) {
   const monthName = CAL_MONTHS[reference.getMonth()];
-  const title = `Agenda de Eventos â€“ ${monthName} ${reference.getFullYear()}`;
+  const title = `Agenda de Eventos – ${monthName} ${reference.getFullYear()}`;
   const first = new Date(reference.getFullYear(), reference.getMonth(), 1);
   const firstDow = first.getDay(); // 0=Dom
   const lastDay = new Date(reference.getFullYear(), reference.getMonth()+1, 0).getDate();
@@ -572,7 +572,7 @@ function buildSvgCalendario(reference, eventosMap, logoDataUri) {
       if (wrapped.length === 0) continue;
       for (let j=0; j<wrapped.length; j++) {
         if (usedLines >= CAL_MAX_EVENT_LINES) break;
-        const prefix = j === 0 ? 'â€¢ ' : '  ';
+        const prefix = j === 0 ? '• ' : '  ';
         gathered.push(prefix + wrapped[j]);
         usedLines++;
       }
@@ -641,7 +641,7 @@ async function getOrRenderCalendarPng(monthStr) {
 
   if (!hasAny) {
     // Gera uma imagem simples "Sem eventos" para manter compatibilidade visual
-    const svg = `<?xml version="1.0"?><svg width="${CAL_PAGE_W}" height="${CAL_PAGE_H}" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="#fff"/><text x="50%" y="50%" font-family="Arial, sans-serif" font-size="24" text-anchor="middle" fill="#333">Sem eventos neste mÃªs</text></svg>`;
+    const svg = `<?xml version="1.0"?><svg width="${CAL_PAGE_W}" height="${CAL_PAGE_H}" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="#fff"/><text x="50%" y="50%" font-family="Arial, sans-serif" font-size="24" text-anchor="middle" fill="#333">Sem eventos neste mês</text></svg>`;
     const buf = await sharp(Buffer.from(svg)).png().toBuffer();
     __cal_cache.set(monthStr, { buf, expiresAt: now + 60*60*1000 }); // 1h
     return buf;
@@ -736,7 +736,7 @@ function buildSvgPoster(reference, eventosMap, logoDataUri, options = {}) {
     card: { radius: 48, textSize: 60, leftPad: 28, ratio: 0.8, gap: 20 }
   };
 
-  const titleText = 'EVENTOS DO MÃŠS';
+  const titleText = 'EVENTOS DO MÊS';
   const startY = SPEC.title.top + SPEC.title.size + 40; // apÃ³s o tÃ­tulo
   const circleR = SPEC.pill.diameter / 2;
   const innerLeft = MARGIN;
@@ -854,12 +854,15 @@ function buildSvgPosterV2(reference, eventosMap, logoDataUri, options = {}) {
   const BLUE = '#044372', OFF = '#F9F7F2', BLACK = '#111111', WHITE = '#FFFFFF';
 
   const ROW_H = 96, ROW_GAP = 24, PILL_D = 84, CARD_RADIUS = 48, CARD_PAD_L = 28;
+  // Font sizes for event card titles
+  const CARD_TEXT = 60;          // default font size (px)
+  const CARD_TEXT_SMALL = 48;    // fallback for longer titles
   const CARD_RIGHT_MARGIN = 8; // aproxima o cartÃ£o da borda direita
-  const TITLE_MAX = 150, TITLE_MIN = 96, TRACK = 2; // letter-spacing px
-  const CARD_TEXT = 60, CARD_TEXT_SMALL = 52;
+  // removed duplicate TITLE_MAX declaration (was 150/96)
+  const TITLE_MAX = 130, TITLE_MIN = 90, TRACK = 2; // letter-spacing px
 
   const hasLogo = Boolean(logoDataUri);
-  const titleText = 'PRÃ“XIMOS EVENTOS';
+  const titleText = 'PR\u00D3XIMOS EVENTOS';
 
   const circleR = PILL_D/2;
   const innerLeft = M, innerRight = W - M;
@@ -891,7 +894,7 @@ function buildSvgPosterV2(reference, eventosMap, logoDataUri, options = {}) {
     if (text.length <= maxChars) return { text, size: CARD_TEXT };
     const maxCharsSmall = Math.floor((rectW - CARD_PAD_L - 20) / (CARD_TEXT_SMALL * 0.52));
     if (text.length <= maxCharsSmall) return { text, size: CARD_TEXT_SMALL };
-    return { text: text.slice(0, Math.max(0, maxCharsSmall-1)) + 'â€¦', size: CARD_TEXT_SMALL };
+    return { text: text.slice(0, Math.max(0, maxCharsSmall-1)) + '…', size: CARD_TEXT_SMALL };
   }
 
   const rows = events.map((ev, idx) => {
@@ -1307,7 +1310,7 @@ async function verificarEventosParaLembrete() {
       const updates = contatos.map(([numero, status]) => [status]);
 
       if (eventosDaSemana.length > 0) {
-        const saudacao = "ðŸŒž Bom dia! Aqui Ã© o EAC PorciÃºncula trazendo um resumo dos prÃ³ximos eventos:\n";
+        const saudacao = "ðŸŒž Bom dia! Aqui Ã© o EAC PorciÃºncula trazendo um resumo dos PR\\u00D3XIMOS EVENTOS:\n";
         const cabecalho = `ðŸ“… *Agenda da Semana (${hoje.toLocaleDateString()} a ${seteDiasDepois.toLocaleDateString()})*\n\n`;
         const corpo = eventosDaSemana.join("\n");
         const rodape = "\nðŸ‘‰ Se tiver dÃºvida, fale com a gente!";
@@ -1533,7 +1536,7 @@ async function dispararEventosSemTemplate() {
       return;
     }
 
-    const mensagemFinal = `ðŸ“¢ *PrÃ³ximos Eventos do EAC:*\n\n${eventosDaSemana.join("\n")}\n\nðŸŸ  Se tiver dÃºvidas, fale com a gente!`;
+    const mensagemFinal = `ðŸ“¢ *PR\\u00D3XIMOS EVENTOS do EAC:*\n\n${eventosDaSemana.join("\n")}\n\nðŸŸ  Se tiver dÃºvidas, fale com a gente!`;
 
     // 2. LÃ³gica de envio para as planilhas de contatos
     // Usaremos um Set para garantir que cada nÃºmero receba a mensagem apenas uma vez
@@ -2569,4 +2572,5 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`ðŸš€ Servidor rodando na porta ${PORT}`);
 });
+
 
