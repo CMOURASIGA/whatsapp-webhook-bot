@@ -683,7 +683,7 @@ app.get('/eventos/status.json', async (req, res) => {
     const ref = new Date(y, m-1, 1);
     const { hasAny } = await readEventosDoMes(ref);
     if (!hasAny) return res.json({ status: 'SEM_EVENTOS' });
-    const baseUrl = (process.env.PUBLIC_BASE_URL || '').trim() || `${req.protocol}://${req.get('host')}`;
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
     const link = `${baseUrl}/eventos/calendario.png?month=${monthStr}`;
     return res.json({ status: 'OK', links: [link] });
   } catch (e) {
@@ -824,7 +824,7 @@ app.get('/eventos/poster.png', async (req, res) => {
 // Lista de links para todas as pÃ¡ginas de pÃ´ster (5 eventos por pÃ¡gina)
 app.get('/eventos/posters.json', async (req, res) => {
   try {
-    const baseUrl = (process.env.PUBLIC_BASE_URL || '').trim() || `${req.protocol}://${req.get('host')}`;
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
     const d = new Date();
     const monthStr = (req.query.month && /\d{4}-\d{2}/.test(req.query.month))
       ? req.query.month
@@ -958,7 +958,7 @@ app.get('/eventos/poster2.png', async (req, res) => {
 
 app.get('/eventos/posters2.json', async (req, res) => {
   try {
-    const baseUrl = (process.env.PUBLIC_BASE_URL || '').trim() || `${req.protocol}://${req.get('host')}`;
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
     const d = new Date();
     const monthStr = (req.query.month && /\d{4}-\d{2}/.test(req.query.month)) ? req.query.month : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
     const [y, m] = monthStr.split('-').map(Number);
@@ -1404,7 +1404,7 @@ app.post("/webhook", async (req, res) => {
     // Fluxo PRIORITÁRIO: enviar pôster (poster2) para opção "6"
     if (textoRecebido === "6") {
       try {
-        const baseUrl = (process.env.PUBLIC_BASE_URL || "").trim() || `${req.protocol}://${req.get('host')}`;
+        const baseUrl = `${req.protocol}://${req.get('host')}`;
         const dNow = new Date();
         const monthStr = `${dNow.getFullYear()}-${String(dNow.getMonth()+1).padStart(2,'0')}`;
         const postersUrl = `${baseUrl}/eventos/posters2.json?month=${monthStr}`;
