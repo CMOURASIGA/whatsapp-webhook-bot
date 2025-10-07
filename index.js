@@ -854,6 +854,9 @@ function buildSvgPosterV2(reference, eventosMap, logoDataUri, options = {}) {
   const BLUE = '#044372', OFF = '#F9F7F2', BLACK = '#111111', WHITE = '#FFFFFF';
 
   const ROW_H = 96, ROW_GAP = 24, PILL_D = 84, CARD_RADIUS = 48, CARD_PAD_L = 28;
+  // Font sizes for event card titles
+  const CARD_TEXT = 60;          // default font size (px)
+  const CARD_TEXT_SMALL = 48;    // fallback for longer titles
   const CARD_RIGHT_MARGIN = 8; // aproxima o cartÃ£o da borda direita
   // removed duplicate TITLE_MAX declaration (was 150/96)
   const TITLE_MAX = 130, TITLE_MIN = 90, TRACK = 2; // letter-spacing px
@@ -891,7 +894,7 @@ function buildSvgPosterV2(reference, eventosMap, logoDataUri, options = {}) {
     if (text.length <= maxChars) return { text, size: CARD_TEXT };
     const maxCharsSmall = Math.floor((rectW - CARD_PAD_L - 20) / (CARD_TEXT_SMALL * 0.52));
     if (text.length <= maxCharsSmall) return { text, size: CARD_TEXT_SMALL };
-    return { text: text.slice(0, Math.max(0, maxCharsSmall-1)) + 'â€¦', size: CARD_TEXT_SMALL };
+    return { text: text.slice(0, Math.max(0, maxCharsSmall-1)) + '…', size: CARD_TEXT_SMALL };
   }
 
   const rows = events.map((ev, idx) => {
