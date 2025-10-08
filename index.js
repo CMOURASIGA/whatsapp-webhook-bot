@@ -1042,7 +1042,7 @@ function montarMenuPrincipalInterativo() {
     type: "interactive",
     interactive: {
       type: "list",
-      header: { type: "text", text: "ðŸ“‹ Menu Principal - EAC PorciÃºncula" },
+      header: { type: "text", text: "ðŸ“‹ Menu Principal - EAC Porciúncula" },
       body: {
         text: "Como posso te ajudar hoje? Escolha uma das opÃ§Ãµes:\n\nToque no botÃ£o abaixo para ver as opÃ§Ãµes."
       },
@@ -1393,7 +1393,7 @@ function montarMenuPrincipalInterativoUTF8() {
     type: "interactive",
     interactive: {
       type: "list",
-      header: { type: "text", text: "?? Menu Principal - EAC Porciúncula" },
+      header: { type: "text", text: " Menu Principal - EAC Porciúncula" },
       body: {
         text: "Como posso te ajudar hoje? Escolha uma das opções:\n\nToque no botão abaixo para ver as opções."
       },
