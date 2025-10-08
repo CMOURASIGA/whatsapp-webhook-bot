@@ -1593,8 +1593,8 @@ app.post("/webhook", async (req, res) => {
 
 
     const fallback = [
-      "ðŸ¤– Opa! NÃ£o entendi bem sua mensagem...",
-      "ðŸ”Ž Posso te ajudar com:\nâ€¢ InscriÃ§Ãµes\nâ€¢ Eventos\nâ€¢ Contato com a coordenaÃ§Ã£o"
+      "Opa! Não entendi bem sua mensagem...",
+      "Posso te ajudar com:\nâ€¢ InscriÃ§Ãµes\nâ€¢ Eventos\nâ€¢ Contato com a coordenaÃ§Ã£o"
     ];
     if (TELEFONE_CONTATO_HUMANO) {
       fallback.push(`ðŸ“Œ Para falar com alguÃ©m agora: wa.me/${TELEFONE_CONTATO_HUMANO}`);
@@ -1604,11 +1604,11 @@ app.post("/webhook", async (req, res) => {
     fallback.push("Enquanto isso, veja o menu novamente ðŸ‘‡");
 
     const msgFallback = [
-      "?? Opa! Não entendi bem sua mensagem...",
-      "?? Posso te ajudar com:\n• Inscrições\n• Eventos\n• Contato com a coordenação",
+      "Opa! Não entendi bem sua mensagem...",
+      "Posso te ajudar com:\n• Inscrições\n• Eventos\n• Contato com a coordenação",
       TELEFONE_CONTATO_HUMANO
-        ? `?? Para falar com alguém agora: wa.me/${TELEFONE_CONTATO_HUMANO}`
-        : "?? Envie um e-mail para eacporciunculadesantana@gmail.com com o assunto 'Quero falar com alguém'",
+        ? `Para falar com alguém agora: wa.me/${TELEFONE_CONTATO_HUMANO}`
+        : "Envie um e-mail para eacporciunculadesantana@gmail.com com o assunto 'Quero falar com alguém'",
       "Enquanto isso, veja o menu novamente ??"
     ].join("\n\n");
     await enviarMensagem(numero, msgFallback);
