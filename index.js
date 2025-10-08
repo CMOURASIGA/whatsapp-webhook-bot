@@ -1512,8 +1512,12 @@ app.post("/webhook", async (req, res) => {
       "7": ["ðŸŽµ *Playlist no Spotify*\n\nðŸ‘‰ https://open.spotify.com/playlist/1TC8C71sbCZM43ghR1giWH?si=zyXIhEfvSWSKG21GTIoazA&pi=FxazNzY4TJWns"]
     };
 
-    if (respostasSafe && respostasSafe[textoRecebido]) {
-      const mensagemParaEnviar = getRandomMessage(respostasSafe[textoRecebido]);
+    // Seleciona o mapa de respostas disponível (safe > respostas2 > respostas)
+    const mapaRespostas = (typeof respostasSafe !== 'undefined' && respostasSafe)
+      || (typeof respostas2 !== 'undefined' && respostas2)
+      || respostas;
+    if (mapaRespostas && mapaRespostas[textoRecebido]) {
+      const mensagemParaEnviar = getRandomMessage(mapaRespostas[textoRecebido]);
       await enviarMensagem(numero, mensagemParaEnviar);
       return res.sendStatus(200);
     }
