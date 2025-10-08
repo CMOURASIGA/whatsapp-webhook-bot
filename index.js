@@ -941,13 +941,28 @@ app.get('/eventos/poster2.png', async (req, res) => {
     const [y, m] = monthStr.split('-').map(Number);
     const ref = new Date(y, m-1, 1);
     const { eventosMap, hasAny } = await readEventosDoMes(ref);
-    if (!hasAny) return res.status(404).send('SEM_EVENTOS');
     const logoUri = await getLogoDataUri();
     const fontAntonio = await getFontDataUri('antonio');
     const fontChewy = await getFontDataUri('chewy');
     const page = Number(req.query.page || 1);
     const perPage = Number(req.query.perPage || 5);
-    const svg = buildSvgPosterV2(ref, eventosMap, logoUri, { page, perPage, fontAntonio, fontChewy });
+
+    let svg;
+    if (!hasAny) {
+      // Fallback: cartaz simples "Sem eventos" 1080x1080 (mantém compatibilidade de imagem)
+      const W = 1080, H = 1080, BLUE = '#044372', OFF = '#F9F7F2', BLACK = '#111';
+      const title = 'SEM EVENTOS NESTE MÊS';
+      svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="${W}" height="${H}" fill="#000" />
+  <rect x="10" y="10" width="${W-20}" height="${H-20}" rx="28" ry="28" fill="${OFF}" stroke="${BLUE}" stroke-width="10" />
+  <text x="50%" y="45%" text-anchor="middle" font-family="Anton, Impact, Arial Black, Arial, sans-serif" font-size="88" font-weight="900" fill="${BLACK}">${title}</text>
+  ${logoUri ? `<image href="${logoUri}" x="${W-140}" y="${H-140}" width="120" height="120" preserveAspectRatio="xMidYMid meet" />` : ''}
+</svg>`;
+    } else {
+      svg = buildSvgPosterV2(ref, eventosMap, logoUri, { page, perPage, fontAntonio, fontChewy });
+    }
+
     const png = await sharp(Buffer.from(svg)).png().toBuffer();
     res.type('image/png').send(png);
   } catch (e) {
@@ -964,7 +979,10 @@ app.get('/eventos/posters2.json', async (req, res) => {
     const [y, m] = monthStr.split('-').map(Number);
     const ref = new Date(y, m-1, 1);
     const { eventosMap, hasAny } = await readEventosDoMes(ref);
-    if (!hasAny) return res.json({ status: 'SEM_EVENTOS' });
+    if (!hasAny) {
+      const links = [`${baseUrl}/eventos/poster2.png?month=${monthStr}`];
+      return res.json({ status: 'OK', links, fallback: true });
+    }
     const all = getAllEventsSorted(eventosMap);
     const perPage = Number(req.query.perPage || 5);
     const pages = Math.max(1, Math.ceil(all.length / perPage));
