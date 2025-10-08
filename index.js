@@ -1413,6 +1413,60 @@ function montarMenuPrincipalInterativoUTF8() {
   };
 }
 
+// ===== UX SAFE HELPERS (não invadem a implementação existente) =====
+function __normalizeTextUX(s = "") {
+  try { return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(); } catch { return String(s||'').toLowerCase().trim(); }
+}
+function __isGreetingUX(texto) {
+  const t = __normalizeTextUX(texto);
+  const list = ["oi","ola","ola!","bom dia","boa tarde","boa noite","e ai","eai","opa","menu"];
+  return list.includes(t);
+}
+function montarMenuPrincipalInterativoSafe() {
+  const DRY = String(process.env.DRY_RUN || '').toLowerCase() === 'true';
+  const header = `⭐ Menu Principal - EAC Porciúncula${DRY ? ' (simulado)' : ''}`;
+  return {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    type: "interactive",
+    interactive: {
+      type: "list",
+      header: { type: "text", text: header },
+      body: { text: "Como posso te ajudar hoje? Escolha uma das opções:\n\nToque no botão abaixo para ver as opções." },
+      footer: { text: "" },
+      action: {
+        button: "Ver opções",
+        sections: [
+          { title: "✅ Inscrições", rows: [
+            { id: "1", title: "Formulário Encontristas", description: "Inscrição para adolescentes" },
+            { id: "2", title: "Formulário Encontreiros", description: "Inscrição para equipe" }
+          ]},
+          { title: "✅ Contatos e Redes", rows: [
+            { id: "3", title: "Instagram do EAC", description: "Nosso perfil oficial" },
+            { id: "4", title: "E-mail de contato", description: "Fale conosco por e-mail" },
+            { id: "5", title: "WhatsApp da Paróquia", description: "Contato direto" }
+          ]},
+          { title: "✅ Eventos e Conteúdo", rows: [
+            { id: "6", title: "Eventos do EAC", description: "Agenda de eventos" },
+            { id: "7", title: "Playlist no Spotify", description: "Nossas músicas" },
+            { id: "9", title: "Mensagem do Dia", description: "Inspiração diária" },
+            { id: "10", title: "Versículo do Dia", description: "Palavra de Deus" }
+          ]}
+        ]
+      }
+    }
+  };
+}
+function __buildFallbackUX() {
+  const DRY = String(process.env.DRY_RUN || '').toLowerCase() === 'true';
+  return [
+    "Ops! Não entendi bem sua mensagem...",
+    "Posso te ajudar com:\n• Inscrições\n• Eventos\n• Contato com a coordenação",
+    (process.env.TELEFONE_CONTATO_HUMANO ? `Fale agora: wa.me/${process.env.TELEFONE_CONTATO_HUMANO}` : "E-mail: eacporciunculadesantana@gmail.com"),
+    "Veja o menu novamente abaixo." + (DRY ? " (simulado)" : "")
+  ].join("\n\n");
+}
+
 const respostas2 = {
   "1": [
     "?? *Inscrição de Encontristas*\n\nSe você quer participar como *adolescente encontrista* no nosso próximo EAC, preencha este formulário com atenção:\n?? https://docs.google.com/forms/d/e/1FAIpQLScrESiqWcBsnqMXGwiOOojIeU6ryhuWwZkL1kMr0QIeosgg5w/viewform?usp=preview",
@@ -1440,8 +1494,8 @@ app.post("/webhook", async (req, res) => {
 
     if (!textoRecebido) return res.sendStatus(200);
 
-    if (isGreeting(textoRecebido)) {
-      const menu = montarMenuPrincipalInterativoUTF8();
+    if (__isGreetingUX(textoRecebido)) {
+      const menu = montarMenuPrincipalInterativoSafe();
       await enviarMensagemInterativa(numero, menu);
       return res.sendStatus(200);
     }
@@ -1458,8 +1512,8 @@ app.post("/webhook", async (req, res) => {
       "7": ["ðŸŽµ *Playlist no Spotify*\n\nðŸ‘‰ https://open.spotify.com/playlist/1TC8C71sbCZM43ghR1giWH?si=zyXIhEfvSWSKG21GTIoazA&pi=FxazNzY4TJWns"]
     };
 
-    if (respostas2[textoRecebido]) {
-      const mensagemParaEnviar = getRandomMessage(respostas2[textoRecebido]);
+    if (respostasSafe && respostasSafe[textoRecebido]) {
+      const mensagemParaEnviar = getRandomMessage(respostasSafe[textoRecebido]);
       await enviarMensagem(numero, mensagemParaEnviar);
       return res.sendStatus(200);
     }
@@ -2640,9 +2694,21 @@ async function enviarComunicadoAniversarioHoje(opts = {}) {
 
 // InicializaÃ§Ã£o do servidor
 const PORT = process.env.PORT || 3000;
+
+// ===== DEBUG ROUTES (web validation) =====
+try {
+  const enableDebug = String(process.env.DEBUG_ENDPOINTS || 'true').toLowerCase() === 'true';
+  if (enableDebug) {
+    app.get('/debug/menu.json', (req, res) => res.json(montarMenuPrincipalInterativoSafe()));
+    app.get('/debug/fallback.txt', (req, res) => { res.set('Content-Type','text/plain; charset=utf-8'); res.send(__buildFallbackUX()); });
+    app.get('/debug/keywords.json', (req, res) => res.json({ ok: true, accepts: ["oi","ola","bom dia","boa tarde","boa noite","e ai","eai","opa","menu"] }));
+  }
+} catch {}
 app.listen(PORT, () => {
   console.log(`ðŸš€ Servidor rodando na porta ${PORT}`);
 });
+
+
 
 
 
