@@ -1467,6 +1467,28 @@ function __buildFallbackUX() {
   ].join("\n\n");
 }
 
+// Respostas simplificadas (safe) para opções do menu
+const respostasSafe = {
+  "1": [
+    "Inscrição de Encontristas\n\nPara se inscrever como adolescente encontrista, use o formulário:\nLink: https://docs.google.com/forms/d/e/1FAIpQLScrESiqWcBsnqMXGwiOOojIeU6ryhuWwZkL1kMr0QIeosgg5w/viewform?usp=preview",
+  ],
+  "2": [
+    "Inscrição de Encontreiros\n\nSe deseja servir como encontreiro, preencha aqui:\nLink: https://forms.gle/VzqYTs9yvnACiCew6",
+  ],
+  "3": [
+    "Instagram do EAC\n\nLink: https://www.instagram.com/eacporciuncula/",
+  ],
+  "4": [
+    "Fale conosco por e-mail\n\nE-mail: eacporciunculadesantana@gmail.com",
+  ],
+  "5": [
+    "WhatsApp da Paróquia\n\nLink: https://wa.me/5521981140278",
+  ],
+  "7": [
+    "Playlist no Spotify\n\nLink: https://open.spotify.com/playlist/1TC8C71sbCZM43ghR1giWH?si=zyXIhEfvSWSKG21GTIoazA&pi=FxazNzY4TJWns",
+  ],
+};
+
 const respostas2 = {
   "1": [
     "?? *Inscrição de Encontristas*\n\nSe você quer participar como *adolescente encontrista* no nosso próximo EAC, preencha este formulário com atenção:\n?? https://docs.google.com/forms/d/e/1FAIpQLScrESiqWcBsnqMXGwiOOojIeU6ryhuWwZkL1kMr0QIeosgg5w/viewform?usp=preview",
