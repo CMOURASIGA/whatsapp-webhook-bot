@@ -2752,6 +2752,18 @@ app.listen(PORT, () => {
   console.log(`ðŸš€ Servidor rodando na porta ${PORT}`);
 });
 
+// Adicione isso ao seu index.js no Render para permitir a exclusão via Painel
+app.delete("/api/comunicados/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const sheets = getSheetsClientLocal();
+    const spreadsheetId = "1BXitZrMOxFasCJAqkxVVdkYPOLLUDEMQ2bIx5mrP8Y8";
+    // Lógica para encontrar a linha pelo ID e deletar (ou limpar)
+    // ... código de manipulação do Google Sheets ...
+    res.send("Removido com sucesso");
+  } catch (e) { res.status(500).send(e.message); }
+});
+
 
 
 
