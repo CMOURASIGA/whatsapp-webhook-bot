@@ -1068,7 +1068,7 @@ function montarMenuPrincipalInterativo() {
           {
             title: "ðŸ“… Eventos e ConteÃºdo",
             rows: [
-              { id: "6", title: "Eventos do EAC", description: "Agenda de eventos" },
+              { id: "6", title: "Agenda do EAC", description: "Abrir calendário público" },
               { id: "7", title: "Playlist no Spotify", description: "Nossas mÃºsicas" },
               { id: "9", title: "Mensagem do Dia", description: "InspiraÃ§Ã£o diÃ¡ria" },
               { id: "10", title: "VersÃ­culo do Dia", description: "Palavra de Deus" }
@@ -1089,7 +1089,7 @@ function montarMenuPrincipal() {
     "3 - ðŸ“¸ Instagram do EAC\n" +
     "4 - ðŸ“¬ E-mail de contato\n" +
     "5 - ðŸ“± WhatsApp da ParÃ³quia\n" +
-    "6 - ðŸ“… Eventos do EAC\n" +
+    "6 - ðŸ“… Agenda do EAC\n" +
     "7 - ðŸŽµ Playlist no Spotify\n" +
     //"8 - ðŸ’¬ Falar com um Encontreiro\n" +
     "9 - ðŸ’¡ Mensagem do Dia\n" +
@@ -1329,7 +1329,8 @@ async function verificarEventosParaLembrete() {
 
       if (eventosDaSemana.length > 0) {
         const saudacao = "ðŸŒž Bom dia! Aqui Ã© o EAC PorciÃºncula trazendo um resumo dos PR\\u00D3XIMOS EVENTOS:\n";
-        const cabecalho = `ðŸ“… *Agenda da Semana (${hoje.toLocaleDateString()} a ${seteDiasDepois.toLocaleDateString()})*\n\n`;
+        const linkAgenda = "https://webappcalendariopublicoeac.vercel.app/";
+        const cabecalho = `📅 *Agenda do EAC*\nVeja o calendário completo aqui:\n${linkAgenda}\n\n`;
         const corpo = eventosDaSemana.join("\n");
         const rodape = "\nðŸ‘‰ Se tiver dÃºvida, fale com a gente!";
 
@@ -1563,7 +1564,7 @@ app.post("/webhook", async (req, res) => {
     }
 
     // Fluxo PRIORITÁRIO: enviar pôster (poster2) para opção "6"
-    if (textoRecebido === "6") {
+    /*if (textoRecebido === "6") {
       try {
         const baseUrl = `${req.protocol}://${req.get('host')}`;
         const dNow = new Date();
@@ -1588,6 +1589,14 @@ app.post("/webhook", async (req, res) => {
         console.error("[Eventos/6] poster2 erro:", e?.response?.data || e?.message || e);
         await enviarMensagem(numero, "? Não conseguimos carregar os eventos agora. Tente mais tarde.");
       }
+      return res.sendStatus(200);
+    }*/
+    if (textoRecebido === "6") {
+      const linkAgenda = "https://webappcalendariopublicoeac.vercel.app/";
+      await enviarMensagem(
+        numero,
+        `📅 *Agenda do EAC*\n\nAcesse o calendário público aqui:\n${linkAgenda}`
+      );
       return res.sendStatus(200);
     }
 
